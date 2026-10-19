@@ -55,8 +55,8 @@ A throwaway spike (museum + a shifted copy of itself) showed:
    markers, but is not hidden by the "show annotations" toggle.
 4. Walking into the doorway (fly/walk mode, WASD or joystick) or tapping the marker starts the
    transition: fade to black, swap, fade in at the arrival pose, looking into the tunnel.
-5. If the destination is not ready yet (its coarse level has not finished loading, e.g. on a slow
-   connection), the screen stays black with a small spinner until it is, then fades in.
+5. If the destination is not ready yet (its preload level has not finished loading, e.g. on a
+   slow connection), the screen stays black with a small spinner until it is, then fades in.
 6. In the tunnel, annotations are the tunnel's own (none yet), and the idle tour starts from the
    arrival pose. The tunnel's door marker «تالار» leads back to the hall the same way.
 7. Door triggers are paused during an XR session.
@@ -142,9 +142,12 @@ New files, each with one job:
 - **`src/rooms/room-manager.ts`** — owns the rooms at runtime:
   - knows the current room (its entity, asset, settings) and any preloading room;
   - `preload(id)`: fetches the room's settings file and creates its `gsplat` entity **parked**
-    out of sight (1 km below the current room) with `lodRangeMax` capped at the middle level
-    (level 2 of 0–3), so it fetches the coarse levels first and is never seen;
-  - `isReady(id)`: the parked room's coarsest level is resident;
+    out of sight (1 km below the current room, beyond the camera's far clip) held at the middle
+    detail level (`lodRangeMin = lodRangeMax = 2` of levels 0–3, or the coarsest level if the
+    room has fewer), so it fetches a useful whole-room level first and is never seen;
+  - ready: every file of the parked level is resident (single-file formats: the asset loaded);
+  - preloading starts only after the first room has revealed (`firstFrame`); the hall's start
+    view is within 3 m of its door and must not compete with the first load;
   - `enter(door)`: runs the transition sequence below; ignores further requests while one runs;
   - frees a preloaded room that is no longer wanted only when another room needs the slot (at
     most one preload at a time).
@@ -161,7 +164,7 @@ New files, each with one job:
 
 1. Mark busy; disable door triggers; stop camera movement input.
 2. Fade to black (200 ms). If the destination is not preloaded yet, start preloading it now.
-3. Wait until the destination is ready (coarse level resident). Show the spinner if this takes
+3. Wait until the destination is ready (preload level resident). Show the spinner if this takes
    longer than ~300 ms. If loading fails, fade back in to the current room, `console.warn`, and
    leave the door armed.
 4. Move the destination entity from its parked position to the origin and lift the LOD cap.
@@ -197,7 +200,9 @@ Kept to what the swap needs:
   even when the first room has no annotations, so a later room's can appear.
 - **`src/schemas/v2.ts`, `src/settings.ts`** — optional `rooms` added to the settings type and
   exported; `validateV2` checks it (unknown top-level keys are already tolerated).
-- **`src/types.ts`** — `ViewerHandle.annotations` becomes a getter for the current room's list.
+- **`src/types.ts`** — `ViewerHandle.annotations` becomes a getter for the current room's list;
+  new state key `room` (current room id, `null` without rooms), so hosts and the UI get
+  `room:changed`. `docs/api.md` notes that annotation indices are per room.
 
 ## Error handling
 
