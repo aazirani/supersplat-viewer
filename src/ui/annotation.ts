@@ -364,6 +364,12 @@ class AnnotationContext {
 
     moreInfoLabel: string;
 
+    // the tooltip's close button, top corner at the end of the title
+    closeDom: HTMLButtonElement;
+
+    // called by the close button: the owner deselects the annotation, which hides the tooltip
+    onClose: (() => void) | null = null;
+
     linkPanel: LinkPanel;
 
     // the ui panels showing over the scene, in canvas pixels, for the tooltip to keep clear of
@@ -388,7 +394,8 @@ class AnnotationContext {
         camera: Entity,
         parentDom: HTMLElement,
         linkPanel: LinkPanel,
-        moreInfoLabel: string
+        moreInfoLabel: string,
+        closeLabel: string
     ) {
         this.parentDom = parentDom;
         this.canvas = canvas;
@@ -400,8 +407,8 @@ class AnnotationContext {
         this.hotspotsDom.className = 'sse-annotation-hotspots';
         parentDom.appendChild(this.hotspotsDom);
 
-        // the tooltip: the title, the text, then the "More info" button. No number: the
-        // selected hotspot beside it already shows it
+        // the tooltip: a close button, the title, the text, then the "More info" button. No
+        // number: the selected hotspot beside it already shows it
         this.tooltipDom = document.createElement('div');
         this.tooltipDom.className = 'sse-annotation';
         // its links are pressed and clicked, which the scene beneath must not take for a press
@@ -432,7 +439,19 @@ class AnnotationContext {
         this.moreInfoDom.className = 'sse-annotation-more sse-hidden';
         this.moreInfoDom.textContent = moreInfoLabel;
 
-        this.tooltipDom.append(this.titleDom, this.textDom, this.moreInfoDom);
+        this.closeDom = document.createElement('button');
+        this.closeDom.className = 'sse-annotation-close sse-panelButton';
+        this.closeDom.type = 'button';
+        this.closeDom.title = closeLabel;
+        this.closeDom.setAttribute('aria-label', closeLabel);
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#closeIcon');
+        icon.appendChild(use);
+        this.closeDom.appendChild(icon);
+        this.closeDom.addEventListener('click', () => this.onClose?.());
+
+        this.tooltipDom.append(this.closeDom, this.titleDom, this.textDom, this.moreInfoDom);
         parentDom.appendChild(this.tooltipDom);
     }
 }

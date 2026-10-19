@@ -1238,11 +1238,35 @@
                 max-width: min(360px, calc(100% - 16px));
             }
 
+            // in the top corner at the end of the title: the right, or the left in a
+            // right-to-left tooltip
+            > .sse-annotation-close {
+                position: absolute;
+                top: 6px;
+                inset-inline-end: 6px;
+                width: 24px;
+                height: 24px;
+                color: var(--sse-text);
+
+                > svg {
+                    width: 14px;
+                    height: 14px;
+                }
+            }
+
             > .sse-annotation-title {
                 flex-shrink: 0;
+                // clear of the close button
+                padding-inline-end: 24px;
                 font-size: 13px;
                 font-weight: bold;
                 color: var(--sse-text-light);
+            }
+
+            // no title: the text's first line keeps clear of the close button instead
+            &:has(> .sse-annotation-title:empty) > .sse-annotation-text {
+                margin-top: 0;
+                padding-inline-end: 24px;
             }
 
             > .sse-annotation-text {

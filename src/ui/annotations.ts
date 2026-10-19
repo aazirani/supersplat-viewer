@@ -59,7 +59,16 @@ class Annotations {
         this.parentDom = parentDom;
 
         const canvas = app.graphicsDevice.canvas as HTMLCanvasElement;
-        const context = new AnnotationContext(canvas, camera, parentDom, linkPanel, localize('annotation.more-info'));
+        const context = new AnnotationContext(
+            canvas,
+            camera,
+            parentDom,
+            linkPanel,
+            localize('annotation.more-info'),
+            localize('link-panel.close')
+        );
+        // the tooltip's close button deselects, as a click on the scene does
+        context.onClose = () => viewer.selectAnnotation(null);
 
         // The corner panels the tooltip keeps clear of, and a redraw when one opens or closes,
         // since a still camera would not move the tooltip otherwise
@@ -261,7 +270,14 @@ class Annotations {
             events.on('controlsHidden:changed', update),
             events.on('showAnnotations:changed', update),
             events.on('cameraMode:changed', update),
-            events.on('gamingControls:changed', update)
+            events.on('gamingControls:changed', update),
+            // Escape closes the tooltip, as its close button does. An open link panel takes the
+            // Escape first, so the first press closes the page and the next the tooltip
+            events.on('inputEvent', (name: string) => {
+                if ((name === 'cancel' || name === 'exitWalk') && context.activeAnnotation) {
+                    viewer.selectAnnotation(null);
+                }
+            })
         ];
         update();
 
