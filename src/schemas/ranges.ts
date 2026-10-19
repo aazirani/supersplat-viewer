@@ -124,7 +124,8 @@ const ANIM_TRACK_LIMITS: AnimTrackLimits = deepFreeze({
 const ANNOTATION_LIMITS: AnnotationLimits = deepFreeze({
     maxCount: 25,
     titleMax: 60,
-    textMax: 280
+    // a museum description, a paragraph or two; the tooltip scrolls what does not fit
+    textMax: 1000
 });
 
 /**

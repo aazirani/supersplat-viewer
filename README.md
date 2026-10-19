@@ -31,13 +31,30 @@ The app supports a number of URL parameters (these are subject to change):
 
 ### UI
 
-| Parameter   | Description                                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| `noui`      | Hide the UI overlay (the programmatic form is `ui: false`, which skips building it)                                 |
-| `reticle`   | Show the centre reticle in captured desktop fly/walk mode (off by default; programmatic form: `reticle: true`)      |
-| `noanim`    | Start with animation paused                                                                                         |
-| `ministats` | Show runtime CPU/GPU performance graphs                                                                             |
-| `lang`      | Override the UI language (`de`, `en`, `es`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`; default: detect from browser) |
+| Parameter    | Description                                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `noui`       | Hide the UI overlay (the programmatic form is `ui: false`, which skips building it)                                       |
+| `reticle`    | Show the centre reticle in captured desktop fly/walk mode (off by default; programmatic form: `reticle: true`)            |
+| `noanim`     | Start with animation paused                                                                                               |
+| `ministats`  | Show runtime CPU/GPU performance graphs                                                                                   |
+| `lang`       | Override the UI language (`de`, `en`, `es`, `fa`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`; default: detect from browser) |
+| `annotation` | Fly to the annotation with this number once loaded (`annotation=3` for hotspot 3), e.g. for a QR code beside an exhibit   |
+
+### Site language
+
+To show every visitor the same language whatever their browser's, set `lang` in the settings block of the `index.html` you deploy, replacing its `null`:
+
+```html
+<script type="application/json" id="sse-bootstrap">
+    { "lang": "fa" }
+</script>
+```
+
+A link's `?lang=en` or `?lang=fa` still overrides it. Without it, the language follows the browser. Embedders set the same through `renderViewerHtml({ bootstrap: { lang: 'fa' } })` or `createViewer({ defaultLang: 'fa' })`.
+
+### Annotation links
+
+Annotation text may hold links, opened in a panel beside the scene: a bare `https://…` url becomes a "More info" button, and `[label](url)` links a word in a sentence. Text in Persian, Arabic or Hebrew reads right to left, in the bundled [Vazirmatn](https://github.com/rastikerdar/vazirmatn) font (SIL Open Font License, `src/fonts/Vazirmatn-OFL.txt`).
 
 ### Renderer
 

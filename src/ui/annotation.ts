@@ -1,7 +1,33 @@
 import { Script, Vec3 } from 'playcanvas';
 import type { Entity } from 'playcanvas';
 
+import { parseAnnotationText, textDirection } from './annotation-links';
+import type { LinkPanel } from './link-panel';
+
 const vec = new Vec3();
+
+// more characters than this, and the tooltip widens for the text
+const LONG_TEXT = 280;
+
+/**
+ * A link in the tooltip. A plain click opens it in the link panel; a click with a modifier, or
+ * the middle button, does what the browser does with a link, a new tab.
+ *
+ * @param anchor - The link element.
+ * @param url - Where it points.
+ * @param title - The panel's title for its page.
+ * @param ctx - The annotations' shared state, for the panel.
+ */
+const linkTo = (anchor: HTMLAnchorElement, url: string, title: string, ctx: AnnotationContext) => {
+    anchor.href = url;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.onclick = (event) => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        ctx.linkPanel.open(url, title);
+    };
+};
 
 /**
  * A script for creating interactive 3D annotations in a scene. Each annotation consists of:
@@ -9,7 +35,8 @@ const vec = new Vec3();
  * - A hotspot: a dom circle with the annotation's number, kept over the annotation's position.
  * `Annotations` tests it against the scene and marks it occluded, which fades it rather than
  * letting the scene cover it pixel by pixel. It stays clickable either way.
- * - An annotation panel that shows title and description text, shared by every annotation.
+ * - An annotation panel that shows title and description text, shared by every annotation. Links
+ * in the text open in the link panel; the first bare url becomes a "More info" button.
  *
  * Styles live in `index.scss`, under `.sse-annotations`.
  */
@@ -149,12 +176,56 @@ export class Annotation extends Script {
             // beside its hotspot; and with no side yet, rather than the one it left it on
             ctx.tooltipOwner = this;
             ctx.titleDom.textContent = this.title;
-            ctx.textDom.textContent = this.text;
+            this._renderText();
             ctx.tooltipDom.classList.remove('sse-arrow-left', 'sse-arrow-right');
         }
 
         // the camera may be still, so no prerender may follow
         this._update();
+    }
+
+    /**
+     * The page this annotation's "More info" button opens, and the link panel's title for it;
+     * null when its text has no bare url.
+     * @private
+     */
+    moreInfo(): { url: string; title: string } | null {
+        const { moreInfoUrl } = parseAnnotationText(this.text);
+        return moreInfoUrl === null ? null : { url: moreInfoUrl, title: this.title || this.context.moreInfoLabel };
+    }
+
+    /**
+     * Fill the tooltip's text and "More info" button from this annotation's text. Built from
+     * text nodes and links, never parsed as html: the text is user-authored.
+     * @private
+     */
+    _renderText() {
+        const ctx = this.context;
+        const { segments } = parseAnnotationText(this.text);
+
+        // the tooltip runs in the annotation's direction, so in a Persian one the "More info"
+        // button sits under the start of the text, on the right, and points left
+        ctx.tooltipDom.dir = textDirection(`${this.title} ${this.text}`);
+        ctx.tooltipDom.classList.toggle('sse-long', this.text.length > LONG_TEXT);
+
+        ctx.textDom.replaceChildren(
+            ...segments.map((segment) => {
+                if (segment.type === 'text') return document.createTextNode(segment.text);
+                const anchor = document.createElement('a');
+                anchor.className = 'sse-annotation-link';
+                anchor.textContent = segment.text;
+                linkTo(anchor, segment.url, segment.text, ctx);
+                return anchor;
+            })
+        );
+        // a long text scrolls; each annotation's starts at its top
+        ctx.textDom.scrollTop = 0;
+
+        const moreInfo = this.moreInfo();
+        ctx.moreInfoDom.classList.toggle('sse-hidden', moreInfo === null);
+        if (moreInfo) {
+            linkTo(ctx.moreInfoDom, moreInfo.url, moreInfo.title, ctx);
+        }
     }
 
     /**
@@ -203,7 +274,8 @@ export class Annotation extends Script {
         // out, moving with the hotspot at the offset it last had rather than standing still while
         // the camera moves on
         const tooltip = ctx.tooltipDom;
-        const vw = ctx.canvas.clientWidth;
+        // the link panel's side counts as beyond the canvas, so the tooltip is not beneath it
+        const vw = ctx.canvas.clientWidth - ctx.linkPanel.coveredRight();
         const vh = ctx.canvas.clientHeight;
         const onCanvas = screenPos.x >= 0 && screenPos.x <= vw && screenPos.y >= 0 && screenPos.y <= vh;
         if (ctx.activeAnnotation !== this || !ctx.revealed) {
@@ -241,6 +313,18 @@ export class Annotation extends Script {
         // Clamp vertical
         top = Math.max(margin, Math.min(top, vh - th - margin));
 
+        // Clear of the ui's corner panels (the controls hint, the settings), which draw over the
+        // tooltip and would hide its button: above one if there is room, else beside it
+        for (const panel of ctx.panels()) {
+            const overlaps = left < panel.right && left + tw > panel.left && top < panel.bottom && top + th > panel.top;
+            if (!overlaps) continue;
+            if (panel.top - margin - th >= margin) {
+                top = panel.top - margin - th;
+            } else if (panel.left - margin - tw >= margin) {
+                left = panel.left - margin - tw;
+            }
+        }
+
         // Position arrow to point at the hotspot, clamped within the tooltip
         const arrowY = Math.max(16, Math.min(screenPos.y - top, th - 16));
         tooltip.style.setProperty('--arrow-top', `${arrowY}px`);
@@ -275,6 +359,22 @@ class AnnotationContext {
 
     textDom: HTMLDivElement;
 
+    // the button the text's first bare url becomes, hidden when there is none
+    moreInfoDom: HTMLAnchorElement;
+
+    moreInfoLabel: string;
+
+    // the tooltip's close button, top corner at the end of the title
+    closeDom: HTMLButtonElement;
+
+    // called by the close button: the owner deselects the annotation, which hides the tooltip
+    onClose: (() => void) | null = null;
+
+    linkPanel: LinkPanel;
+
+    // the ui panels showing over the scene, in canvas pixels, for the tooltip to keep clear of
+    panels: () => { left: number; top: number; right: number; bottom: number }[] = () => [];
+
     activeAnnotation: Annotation | null = null;
 
     // whether the active annotation's tooltip has been revealed: it hides for each camera
@@ -289,27 +389,69 @@ class AnnotationContext {
 
     tooltipOffset: { x: number; y: number } | null = null;
 
-    constructor(canvas: HTMLCanvasElement, camera: Entity, parentDom: HTMLElement) {
+    constructor(
+        canvas: HTMLCanvasElement,
+        camera: Entity,
+        parentDom: HTMLElement,
+        linkPanel: LinkPanel,
+        moreInfoLabel: string,
+        closeLabel: string
+    ) {
         this.parentDom = parentDom;
         this.canvas = canvas;
         this.camera = camera;
+        this.linkPanel = linkPanel;
+        this.moreInfoLabel = moreInfoLabel;
 
         this.hotspotsDom = document.createElement('div');
         this.hotspotsDom.className = 'sse-annotation-hotspots';
         parentDom.appendChild(this.hotspotsDom);
 
-        // the tooltip: the title, then the text. No number: the selected hotspot beside it
-        // already shows it
+        // the tooltip: a close button, the title, the text, then the "More info" button. No
+        // number: the selected hotspot beside it already shows it
         this.tooltipDom = document.createElement('div');
         this.tooltipDom.className = 'sse-annotation';
+        // its links are pressed and clicked, which the scene beneath must not take for a press
+        // on itself: a click there deselects the annotation
+        for (const type of ['pointerdown', 'click']) {
+            this.tooltipDom.addEventListener(type, (event) => event.stopPropagation());
+        }
+        // the wheel over text too long to fit scrolls it, rather than reaching the scene layer,
+        // which passes the wheel on to the camera
+        this.tooltipDom.addEventListener('wheel', (event) => {
+            const text = this.textDom;
+            if (text.contains(event.target as Node) && text.scrollHeight > text.clientHeight) {
+                event.stopPropagation();
+            }
+        });
 
+        // each reads in the direction of its own language, so a Persian or Arabic annotation
+        // reads right to left whatever the ui's language
         this.titleDom = document.createElement('div');
         this.titleDom.className = 'sse-annotation-title';
+        this.titleDom.dir = 'auto';
 
         this.textDom = document.createElement('div');
         this.textDom.className = 'sse-annotation-text';
+        this.textDom.dir = 'auto';
 
-        this.tooltipDom.append(this.titleDom, this.textDom);
+        this.moreInfoDom = document.createElement('a');
+        this.moreInfoDom.className = 'sse-annotation-more sse-hidden';
+        this.moreInfoDom.textContent = moreInfoLabel;
+
+        this.closeDom = document.createElement('button');
+        this.closeDom.className = 'sse-annotation-close sse-panelButton';
+        this.closeDom.type = 'button';
+        this.closeDom.title = closeLabel;
+        this.closeDom.setAttribute('aria-label', closeLabel);
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#closeIcon');
+        icon.appendChild(use);
+        this.closeDom.appendChild(icon);
+        this.closeDom.addEventListener('click', () => this.onClose?.());
+
+        this.tooltipDom.append(this.closeDom, this.titleDom, this.textDom, this.moreInfoDom);
         parentDom.appendChild(this.tooltipDom);
     }
 }

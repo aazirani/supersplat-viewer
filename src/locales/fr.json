@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "Quitter la VR",
     "xr-menu.exit-ar": "Quitter l'AR",
     "xr-menu.ice-cream": "Mode glace",
-    "xr-hint.stalled": "Rien ne se passe ? Changez d'onglet puis revenez."
+    "xr-hint.stalled": "Rien ne se passe ? Changez d'onglet puis revenez.",
+
+    "annotation.more-info": "En savoir plus",
+    "link-panel.open-in-new-tab": "Ouvrir dans un nouvel onglet",
+    "link-panel.close": "Fermer"
 }

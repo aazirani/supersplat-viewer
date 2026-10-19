@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "VR beenden",
     "xr-menu.exit-ar": "AR beenden",
     "xr-menu.ice-cream": "Eiscreme-Modus",
-    "xr-hint.stalled": "Passiert nichts? Wechsle den Tab und wieder zurück."
+    "xr-hint.stalled": "Passiert nichts? Wechsle den Tab und wieder zurück.",
+
+    "annotation.more-info": "Mehr Infos",
+    "link-panel.open-in-new-tab": "In neuem Tab öffnen",
+    "link-panel.close": "Schließen"
 }

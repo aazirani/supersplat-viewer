@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "Выйти из VR",
     "xr-menu.exit-ar": "Выйти из AR",
     "xr-menu.ice-cream": "Режим мороженого",
-    "xr-hint.stalled": "Ничего не происходит? Переключитесь на другую вкладку и вернитесь."
+    "xr-hint.stalled": "Ничего не происходит? Переключитесь на другую вкладку и вернитесь.",
+
+    "annotation.more-info": "Подробнее",
+    "link-panel.open-in-new-tab": "Открыть в новой вкладке",
+    "link-panel.close": "Закрыть"
 }

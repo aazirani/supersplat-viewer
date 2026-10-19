@@ -161,7 +161,7 @@
         </button>
         <div class="sse-annotationInfo">
             <span class="sse-annotationNavNumber"></span>
-            <span class="sse-annotationNavTitle"></span>
+            <span class="sse-annotationNavTitle" dir="auto"></span>
         </div>
         <button class="sse-annotationNext">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">
@@ -232,6 +232,24 @@
             <div class="sse-settingsRow">
                 <button class="sse-frame" data-i18n="settings.frame">Frame</button>
                 <button class="sse-reset" data-i18n="settings.reset">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Link panel: the page an annotation's link points at, beside the scene (ui/link-panel.ts) -->
+    <div class="sse-linkPanelLayer">
+        <div class="sse-linkPanel" aria-hidden="true">
+            <div class="sse-linkPanelHeader">
+                <div class="sse-linkPanelTitle" dir="auto"></div>
+                <a class="sse-linkPanelOpen sse-panelButton" target="_blank" rel="noopener noreferrer">
+                    <svg xmlns="http://www.w3.org/2000/svg"><use href="#externalIcon" /></svg>
+                </a>
+                <button class="sse-linkPanelClose sse-panelButton">
+                    <svg xmlns="http://www.w3.org/2000/svg"><use href="#closeIcon" /></svg>
+                </button>
+            </div>
+            <div class="sse-linkPanelBody">
+                <div class="sse-linkPanelSpinner"></div>
             </div>
         </div>
     </div>
@@ -457,6 +475,9 @@
     </symbol>
     <symbol id="closeIcon" viewBox="0 0 24 24">
         <path d="M6 6l12 12M18 6L6 18" />
+    </symbol>
+    <symbol id="externalIcon" viewBox="0 0 24 24">
+        <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
     </symbol>
     <symbol id="chevronLeftIcon" viewBox="0 0 24 24">
         <path d="M15 19l-7-7 7-7" />

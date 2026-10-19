@@ -43,6 +43,7 @@ import type { ScenePicker } from './picker';
 import { FrameDepthPicker } from './picker-frame-depth';
 import { StochasticSplatRenderer } from './render/stochastic-splat-renderer';
 import type { ExperienceSettings, PostEffectSettings } from './settings';
+import { startAnnotationIndex } from './start-annotation';
 import type { CaptureOptions, Config, Global, XrMode } from './types';
 import { VoxelDebugOverlay } from './voxel-debug-overlay';
 import { initXr, standaloneHeadset } from './xr';
@@ -450,6 +451,10 @@ class Viewer {
             // the vr flag's prompt waits over a still camera
             state.animationPaused = config.noanim || config.vr;
             state.loaded = true;
+
+            // a link to one exhibit flies there now the scene is in view
+            const start = startAnnotationIndex(config.annotation, settings.annotations.length);
+            if (start !== null) this.selectAnnotation(start);
 
             // the window.* hooks below are the standalone document's api for the thumbnail
             // pipeline and console debugging; an embedded instance keeps them off, since two

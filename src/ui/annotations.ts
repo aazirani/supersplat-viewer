@@ -2,10 +2,12 @@ import { Entity, Mat4 } from 'playcanvas';
 import type { CameraComponent, EventHandle, ScriptComponent } from 'playcanvas';
 
 import { TAP_EPSILON } from '../input/shared';
+import type { Localize } from '../localization';
 import type { ScenePicker } from '../picker';
 import type { ViewerHandle } from '../types';
 
 import { Annotation, AnnotationContext } from './annotation';
+import type { LinkPanel } from './link-panel';
 
 // how long the camera must be still before the hotspots are tested against the scene
 const SETTLE_MS = 150;
@@ -38,12 +40,16 @@ class Annotations {
 
     private removeOcclusion: () => void;
 
+    private removePanelObserver: () => void;
+
     constructor(
         viewer: Pick<ViewerHandle, 'app' | 'state' | 'events' | 'annotations' | 'selectAnnotation'>,
         root: HTMLElement,
         camera: Entity,
         getPicker: () => ScenePicker | undefined,
-        getCameraProgress: () => number
+        getCameraProgress: () => number,
+        linkPanel: LinkPanel,
+        localize: Localize
     ) {
         const { app, state, events, annotations } = viewer;
         const parentDom = document.createElement('div');
@@ -53,7 +59,41 @@ class Annotations {
         this.parentDom = parentDom;
 
         const canvas = app.graphicsDevice.canvas as HTMLCanvasElement;
-        const context = new AnnotationContext(canvas, camera, parentDom);
+        const context = new AnnotationContext(
+            canvas,
+            camera,
+            parentDom,
+            linkPanel,
+            localize('annotation.more-info'),
+            localize('link-panel.close')
+        );
+        // the tooltip's close button deselects, as a click on the scene does
+        context.onClose = () => viewer.selectAnnotation(null);
+
+        // The corner panels the tooltip keeps clear of, and a redraw when one opens or closes,
+        // since a still camera would not move the tooltip otherwise
+        const cornerPanels = ['.sse-controlsHint', '.sse-settingsPanel']
+            .map((selector) => root.querySelector<HTMLElement>(selector))
+            .filter((element) => element !== null);
+        context.panels = () => {
+            const origin = canvas.getBoundingClientRect();
+            return cornerPanels
+                .map((element) => element.getBoundingClientRect())
+                .filter((rect) => rect.width > 0 && rect.height > 0)
+                .map((rect) => ({
+                    left: rect.left - origin.left,
+                    top: rect.top - origin.top,
+                    right: rect.right - origin.left,
+                    bottom: rect.bottom - origin.top
+                }));
+        };
+        const panelObserver = new MutationObserver(() => {
+            app.renderNextFrame = true;
+        });
+        for (const element of cornerPanels) {
+            panelObserver.observe(element, { attributes: true, attributeFilter: ['class'] });
+        }
+        this.removePanelObserver = () => panelObserver.disconnect();
 
         const parent = new Entity('annotations', app);
         app.root.addChild(parent);
@@ -209,6 +249,18 @@ class Annotations {
             if (selected !== context.activeAnnotation) {
                 context.activeAnnotation?.hideTooltip();
                 selected?.showTooltip();
+
+                // An open link panel follows the selection, so a visitor reading their way round
+                // the exhibits keeps reading: the next exhibit's page loads while the camera flies
+                // there. One with no page, or no selection, closes it
+                if (linkPanel.isOpen()) {
+                    const moreInfo = selected?.moreInfo();
+                    if (moreInfo) {
+                        linkPanel.open(moreInfo.url, moreInfo.title);
+                    } else {
+                        linkPanel.close();
+                    }
+                }
             }
             app.renderNextFrame = true;
         };
@@ -218,7 +270,14 @@ class Annotations {
             events.on('controlsHidden:changed', update),
             events.on('showAnnotations:changed', update),
             events.on('cameraMode:changed', update),
-            events.on('gamingControls:changed', update)
+            events.on('gamingControls:changed', update),
+            // Escape closes the tooltip, as its close button does. An open link panel takes the
+            // Escape first, so the first press closes the page and the next the tooltip
+            events.on('inputEvent', (name: string) => {
+                if ((name === 'cancel' || name === 'exitWalk') && context.activeAnnotation) {
+                    viewer.selectAnnotation(null);
+                }
+            })
         ];
         update();
 
@@ -232,10 +291,13 @@ class Annotations {
         const onPointerMove = (event: PointerEvent) => {
             if (event.buttons) pressMovement += Math.abs(event.movementX) + Math.abs(event.movementY);
         };
-        const onClick = () => {
+        const onClick = (event: MouseEvent) => {
             // consumed, so a later click from the keyboard is not taken for the drag
             const dragged = pressMovement >= TAP_EPSILON;
             pressMovement = 0;
+            // only a click on the scene itself: one on the ui (closing the controls hint, a
+            // toolbar button) is not a step away from the annotation
+            if (event.target !== canvas) return;
             if (!dragged && state.loaded && state.selectedAnnotation !== null) viewer.selectAnnotation(null);
         };
         root.addEventListener('pointerdown', onPointerDown);
@@ -252,6 +314,7 @@ class Annotations {
         for (const subscription of this.subscriptions) subscription.off();
         this.removeClick();
         this.removeOcclusion();
+        this.removePanelObserver();
         this.parent.destroy();
         this.parentDom.remove();
     }

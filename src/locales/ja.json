@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "VRを終了",
     "xr-menu.exit-ar": "ARを終了",
     "xr-menu.ice-cream": "アイスクリームモード",
-    "xr-hint.stalled": "反応がない場合は、タブを切り替えてから戻ってください。"
+    "xr-hint.stalled": "反応がない場合は、タブを切り替えてから戻ってください。",
+
+    "annotation.more-info": "詳細",
+    "link-panel.open-in-new-tab": "新しいタブで開く",
+    "link-panel.close": "閉じる"
 }

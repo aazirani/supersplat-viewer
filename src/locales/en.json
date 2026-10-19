@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "Exit VR",
     "xr-menu.exit-ar": "Exit AR",
     "xr-menu.ice-cream": "Ice-cream mode",
-    "xr-hint.stalled": "Nothing happening? Switch tabs and back."
+    "xr-hint.stalled": "Nothing happening? Switch tabs and back.",
+
+    "annotation.more-info": "More info",
+    "link-panel.open-in-new-tab": "Open in new tab",
+    "link-panel.close": "Close"
 }

@@ -12,6 +12,7 @@ import { initCameraControls } from './ui/camera-controls';
 import { initControlsHint, readControlsOpen, writeControlsOpen } from './ui/controls-hint';
 import { initFullscreenControls } from './ui/fullscreen-controls';
 import { initJoystick } from './ui/joystick';
+import { initLinkPanel } from './ui/link-panel';
 import { initPlayback } from './ui/playback';
 import { initVrPrompt } from './ui/vr-prompt';
 import { initXrControls } from './ui/xr-controls';
@@ -504,7 +505,17 @@ const initUI = (
 
     disposers.push(initAnnotationControls(viewer, root));
     if (viewer.annotations.length > 0) {
-        const annotations = new Annotations(viewer, root, global.camera, getPicker, getCameraProgress);
+        const { linkPanel, dispose: disposeLinkPanel } = initLinkPanel(viewer, root, localize);
+        disposers.push(disposeLinkPanel);
+        const annotations = new Annotations(
+            viewer,
+            root,
+            global.camera,
+            getPicker,
+            getCameraProgress,
+            linkPanel,
+            localize
+        );
         disposers.push(() => annotations.destroy());
     }
 
