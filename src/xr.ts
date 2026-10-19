@@ -473,9 +473,10 @@ const initXr = (global: Global) => {
     return {
         start,
         end,
-        setCollision: (value: Collision) => {
+        // null (a room change) drops the collision, back to the navigation's own floor plane
+        setCollision: (value: Collision | null) => {
             collision = value;
-            navigation.castRay = castRay;
+            navigation.castRay = value ? castRay : null;
             target?.destroy();
             target = value instanceof VoxelCollision ? new TeleportTarget(app, value) : null;
         },

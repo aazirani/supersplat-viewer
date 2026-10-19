@@ -237,7 +237,7 @@ class Viewer {
      * Switch to another room's loaded entity and settings, arriving at `arrival`. Assigned once
      * the first scene has loaded; undefined before.
      */
-    setRoom: (room: { id: string; entity: Entity; settings: ExperienceSettings }, arrival: ArrivalPose) => void;
+    setRoom?: (room: { id: string; entity: Entity; settings: ExperienceSettings }, arrival: ArrivalPose) => void;
 
     /** Set once {@link destroy} has run. Load continuations check it and bail. */
     destroyed = false;
@@ -665,7 +665,9 @@ class Viewer {
                     // The overlay ray-marches one screen-sized view, which an XR session's eyes
                     // would share, so it is off while one runs
                     const setOverlayEnabled = () => {
-                        const value = state.collisionOverlayEnabled && state.xrMode === null;
+                        // gated on hasCollision: a room change clears it, leaving this overlay
+                        // for the room it was loaded with
+                        const value = state.hasCollision && state.collisionOverlayEnabled && state.xrMode === null;
                         // Upload the voxel data and allocate the screen-sized texture only
                         // when the debug overlay is first used.
                         if (value && !this.voxelOverlay) {
@@ -684,7 +686,7 @@ class Viewer {
                     state.hasCollisionOverlay = true;
 
                     events.on('collisionOverlayEnabled:changed', (value: boolean) => {
-                        this.meshOverlay.enabled = value;
+                        this.meshOverlay.enabled = value && state.hasCollision;
                         app.renderNextFrame = true;
                     });
                 }
@@ -740,9 +742,14 @@ class Viewer {
                 this.configureCamera(roomSettings);
                 this.xr.setGrabTarget(entity, isWalkableSize(sceneBound));
 
+                // the first room's collision, if still loading, belongs to that room: drop it
+                attachCollision = undefined;
+                collisionReady = null;
+
                 if (state.hasCollision) {
                     this.inputController.collision = null;
                     this.cameraManager.setCollision(null);
+                    this.xr.setCollision(null);
                     if (this.navCursor) {
                         this.navCursor.collision = null;
                     }
