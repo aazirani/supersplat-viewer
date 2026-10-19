@@ -378,6 +378,52 @@
         background-repeat: no-repeat;
     }
 
+    /* room change fade (rooms/fade-overlay.ts) */
+
+    .sse-roomFade {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: black;
+        opacity: 0;
+        // matches FADE_MS in rooms/fade-overlay.ts
+        transition: opacity 200ms linear;
+        pointer-events: none;
+
+        // input stops while the screen is black
+        &.sse-opaque {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        > .sse-roomFade-spinner {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 28px;
+            height: 28px;
+            margin: -14px 0 0 -14px;
+            box-sizing: border-box;
+            border-radius: 50%;
+            border: 3px solid rgba(white, 0.15);
+            // spun by rooms/fade-overlay.ts: a @keyframes name would be global, reaching the host page
+            border-top-color: var(--sse-accent);
+        }
+
+        &.sse-waiting > .sse-roomFade-spinner {
+            display: block;
+        }
+
+        // an instant cut for prefers-reduced-motion, set by rooms/fade-overlay.ts: every rule
+        // here is scoped to the instance root, which a media query would escape
+        &.sse-instant {
+            transition: none;
+        }
+    }
+
     /* loadingWrap */
 
     .sse-loadingWrap {

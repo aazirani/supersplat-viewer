@@ -22,6 +22,10 @@ import { initLocalization } from './localization';
 import { addPersianFont } from './persian-font';
 import type { CreateViewerOptions } from './options';
 import { persistPreferences, readPreferences } from './preferences';
+import { createFadeOverlay } from './rooms/fade-overlay';
+import { createRoomHost, firstRoomInstance } from './rooms/room-host';
+import { RoomManager } from './rooms/room-manager';
+import { readRooms } from './rooms/rooms-settings';
 import { importSettings } from './settings';
 import type { Config, Global, State, ViewerHandle } from './types';
 import { initPoster, initUI } from './ui';
@@ -249,6 +253,54 @@ const resolveConfig = (options: CreateViewerOptions): Config => ({
     exposeGlobals: options.exposeGlobals ?? false
 });
 
+// Doors between scenes, when the settings define at least two rooms. The first room is the
+// page's own scene; the others load in the background after the first reveal.
+const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, destroyed: () => boolean) => {
+    const { app, events, state } = global;
+    const { rooms, warnings } = readRooms(global.settings.rooms);
+    for (const warning of warnings) {
+        console.warn('[rooms]', warning);
+    }
+    if (rooms.length < 2) return;
+
+    gsplatLoad.then(
+        (entity) => {
+            if (destroyed()) return;
+
+            const overlay = createFadeOverlay(global.root);
+            const host = createRoomHost(global, viewer, overlay);
+            const manager = new RoomManager(rooms, firstRoomInstance(global, rooms[0].id, entity), host);
+            state.room = rooms[0].id;
+
+            const update = () => {
+                // the camera exists once the first scene has finished loading
+                const camera = viewer.cameraManager?.camera;
+                if (camera) manager.update(camera.position, state.cameraMode, state.xrMode !== null);
+            };
+
+            // Preloading, and going through doors, wait for the first reveal: the start view can be
+            // close to a door and must not compete with the first load. The manager is exposed only
+            // then, so nothing can enter a door before it has started.
+            const firstFrame = events.once('firstFrame', () => {
+                manager.start();
+                global.rooms = manager;
+                app.on('update', update);
+            });
+
+            viewer.onDestroy(() => {
+                firstFrame.off();
+                app.off('update', update);
+                global.rooms = null;
+                manager.destroy();
+                overlay.destroy();
+            });
+        },
+        () => {
+            // the first scene failed to load or the viewer was destroyed: nothing to add doors to
+        }
+    );
+};
+
 const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle> => {
     const { container } = options;
     const config = resolveConfig(options);
@@ -446,6 +498,8 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
     if (disposeAudio) {
         viewer.onDestroy(disposeAudio);
     }
+
+    initRooms(global, viewer, gsplatLoad, () => destroyed);
 
     return handle;
 };
