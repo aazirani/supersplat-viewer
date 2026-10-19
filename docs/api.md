@@ -68,7 +68,7 @@ scene is visible. It returns:
 
 | Member | Purpose |
 | --- | --- |
-| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when the settings define rooms, else `null`; `room:changed` fires after each door transition |
+| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when two or more usable rooms are configured, else `null`; `room:changed` fires after each door transition |
 | `events` | Fires `<key>:changed` with `(value, previous)` for every key of `state` |
 | `annotations` | The current room's annotation data in settings order, available as soon as creation resolves. A getter: after `room:changed` it reflects the new room. Editing entries is unsupported |
 | `captureFrame(options?)` | Renders offscreen, supersampled, and resolves to `{ width, height, data }` with `data` base64. Waits for the first frame |
@@ -232,11 +232,11 @@ An experience can span several separately scanned scenes ("rooms") connected by 
 first room is the page's own scene; the next room loads in the background as the visitor nears
 its door. Walking into the door (fly/walk mode) or tapping its marker fades to black, swaps the
 room, and fades back in at the arrival pose. Orbit mode and XR sessions never trigger a door by
-position; the marker can be tapped in any non-XR mode. A settings file without `rooms` behaves as
+position; the marker can be tapped in any camera mode. A settings file without `rooms` behaves as
 before.
 
 Add the optional top-level `rooms` field to the v2 settings. The first entry takes its content
-and settings from the page, so it has no `contentUrl` or `settingsUrl`.
+and settings from the page, so it needs no `contentUrl` or `settingsUrl`; if it has them they are ignored.
 
 | Field | Meaning |
 | --- | --- |
@@ -249,9 +249,10 @@ and settings from the page, so it has no `contentUrl` or `settingsUrl`.
 | `doors[].preloadRadius` | Optional, default 8. Distance from `center` at which the destination starts loading. |
 | `doors[].arrival` | Camera `position` and look-at `target` in the **destination** room's coordinates. Must lie outside the destination's own door boxes. |
 
-Coordinates are world coordinates as the viewer shows them. Invalid entries (unknown `to`,
+Coordinates are world coordinates as the viewer shows them. The viewer is lenient: invalid entries (unknown `to`,
 duplicate `id`, missing `contentUrl` on a non-first room, malformed vectors) are skipped with a
-`console.warn`; the rest keeps working.
+`console.warn` and the rest keeps working, except that an invalid first room disables rooms
+altogether. `validateSettings` is strict: it throws on the first such problem instead.
 
 ```json
 "rooms": [
