@@ -9,6 +9,7 @@
         "noImplicitAny": true,
         "inlineSources": true,
         "resolveJsonModule": true,
+        "rewriteRelativeImportExtensions": true,
     },
     "include": ["src", "types.d.ts"],
     "exclude": ["dist", "public"]
