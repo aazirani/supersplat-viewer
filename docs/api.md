@@ -68,7 +68,7 @@ scene is visible. It returns:
 
 | Member | Purpose |
 | --- | --- |
-| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when two or more usable rooms are configured, else `null`; `room:changed` fires after each door transition |
+| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when two or more usable rooms are configured, else `null`. It stays `null` until the first scene has loaded, then `room:changed` fires once with the first room's id (before `loaded` turns true). On each door transition it fires while the screen is black: after the new room is in place and before the old room is released and the view fades back in |
 | `events` | Fires `<key>:changed` with `(value, previous)` for every key of `state` |
 | `annotations` | The current room's annotation data in settings order, available as soon as creation resolves. A getter: after `room:changed` it reflects the new room. Editing entries is unsupported |
 | `captureFrame(options?)` | Renders offscreen, supersampled, and resolves to `{ width, height, data }` with `data` base64. Waits for the first frame |
@@ -286,9 +286,13 @@ altogether. `validateSettings` is strict: it throws on the first such problem in
 ]
 ```
 
-Observe `room:changed` to follow the visitor. Annotation indices are per room, so refresh any
-custom annotation UI from `viewer.annotations` when it fires. The `rooms` member of the global
-object is internal and not part of the API.
+Observe `room:changed` to follow the visitor. It fires once when the first scene has loaded (from
+`null` to the first room's id, before `state.loaded` turns true; `state.room` is `null` until then),
+and then on each door transition while the screen is faded to black: the camera is in the new room
+and `viewer.annotations` already returns its list, the old room has not been released yet, and the
+fade-in follows. Annotation indices are per room, so refresh any custom annotation UI from
+`viewer.annotations` when it fires. The `rooms` member of the global object is internal and not part
+of the API.
 
 ## Settings
 

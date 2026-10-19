@@ -10,6 +10,7 @@ import type { Global } from '../types';
 import type { Viewer } from '../viewer';
 
 import type { FadeOverlay } from './fade-overlay';
+import { READY_STALL_TIMEOUT_MS, createReadyWatch } from './ready-watch';
 import type { RoomHost } from './room-manager';
 import type { RoomDef } from './rooms-settings';
 
@@ -22,6 +23,9 @@ const PARK_OFFSET: [number, number, number] = [0, -1000, 0];
 // The detail level a parked room is held at (0 is the finest): a useful whole-room level that
 // the fade can wait for, or the coarsest level when a room has fewer.
 const PARK_LEVEL = 2;
+
+// How often a readiness wait checks itself when no frame does.
+const READY_CHECK_INTERVAL_MS = 1000;
 
 type OctreeLike = {
     lodLevels: number;
@@ -107,6 +111,8 @@ const createRoomHost = (
                 const component = entity.gsplat as GSplatComponent;
                 component.lodRangeMin = component.lodRangeMax = parkLevel(octree);
             }
+            // rendering is on demand: a frame starts the parked room streaming
+            app.renderNextFrame = true;
 
             return { id: room.id, entity, asset, settings };
         },
@@ -121,34 +127,51 @@ const createRoomHost = (
             octree.files.forEach((file, index) => {
                 if (file.lodLevel === level) files.push(index);
             });
-            const resident = () => files.every((index) => octree.fileResources.has(index));
-            if (resident()) return Promise.resolve();
+            const residentCount = () => files.reduce((n, index) => n + (octree.fileResources.has(index) ? 1 : 0), 0);
+            if (residentCount() === files.length) return Promise.resolve();
 
             return new Promise<void>((resolve, reject) => {
                 const system = app.systems.gsplat;
+                const watch = createReadyWatch(files.length, performance.now());
+
+                // checked on every frame, and on a timer too, so a stall is noticed even when
+                // nothing renders
+                const timer = setInterval(() => check(), READY_CHECK_INTERVAL_MS);
                 const stop = () => {
                     system.off('frame:ready', check);
+                    clearInterval(timer);
                     waits.delete(instance);
+                };
+                const fail = (err: Error) => {
+                    stop();
+                    reject(err);
                 };
                 const check = () => {
                     if (viewer.destroyed) {
-                        stop();
-                        reject(new Error('the viewer was destroyed'));
-                    } else if (resident()) {
+                        fail(new Error('the viewer was destroyed'));
+                        return;
+                    }
+                    const count = residentCount();
+                    const state = watch(count, performance.now(), document.hidden);
+                    if (state === 'ready') {
                         stop();
                         resolve();
+                    } else if (state === 'stalled') {
+                        fail(
+                            new Error(
+                                `room "${instance.id}" stopped loading: ${count} of ${files.length} files of ` +
+                                    `level ${level} arrived, none in the last ${READY_STALL_TIMEOUT_MS / 1000} s`
+                            )
+                        );
                     } else {
                         // streaming advances only on rendered frames, and the screen is black
                         // and still while this waits
                         app.renderNextFrame = true;
                     }
                 };
-                waits.set(instance, (err) => {
-                    stop();
-                    reject(err);
-                });
+                waits.set(instance, fail);
                 system.on('frame:ready', check);
-                app.renderNextFrame = true;
+                check();
             });
         },
 
@@ -161,9 +184,10 @@ const createRoomHost = (
             try {
                 setRoom({ id: room.id, entity: instance.entity, settings: instance.settings }, arrival);
             } catch (err) {
-                // the manager keeps it parked: put it back out of sight
-                instance.entity.setLocalPosition(...PARK_OFFSET);
-                throw err;
+                // Part of the viewer may already be in the new room (its settings, bounds or
+                // camera), so going back is not possible: the room counts as switched, and the
+                // manager releases the old one and fades in as usual.
+                warn(`room "${room.id}" was only partly set up: ${describeError(err)}`);
             }
         },
 
