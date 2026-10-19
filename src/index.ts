@@ -17,6 +17,7 @@ import { App } from './app';
 import { MeshCollision, loadVoxelCollision } from './collision';
 import type { Collision } from './collision';
 import { observe } from './core/observe';
+import { contentName, loadGsplat } from './load-gsplat';
 import { initLocalization } from './localization';
 import { addPersianFont } from './persian-font';
 import type { CreateViewerOptions } from './options';
@@ -28,12 +29,6 @@ import uiHtml from './ui.html';
 import { Viewer } from './viewer';
 import { version as appVersion } from '../package.json';
 
-// The filename's extension selects the gsplat parser, so a url with no usable name (a data:
-// uri) needs the config to name its content instead; falsy (an empty name) falls back to the
-// url-derived name.
-const contentName = (contentUrl: string, contentFilename?: string | null) =>
-    contentFilename || new URL(contentUrl, location.href).pathname.split('/').pop();
-
 // Whether a prefetched response for this content is worth starting. The engine's octree parser
 // fetches lod-meta.json itself and ignores `asset.file.contents`, so prefetching it downloads
 // the metadata twice — a quarter of a megabyte on a real scene, served with no cache-control
@@ -43,59 +38,6 @@ const contentName = (contentUrl: string, contentFilename?: string | null) =>
 // let the octree path reuse the response instead of opting out of it.
 const isPrefetchable = (contentUrl: string, contentFilename?: string | null) =>
     contentName(contentUrl, contentFilename)?.toLowerCase() !== 'lod-meta.json';
-
-const loadGsplat = async (
-    app: AppBase,
-    config: Config,
-    progressCallback: (progress: number) => void,
-    cancelled: () => boolean
-) => {
-    const { contents, contentUrl, contentFilename } = config;
-    const c = contents as unknown as ArrayBuffer;
-    const filename = contentName(contentUrl, contentFilename);
-    const data = filename.toLowerCase() === 'meta.json' ? await (await contents).json() : undefined;
-
-    // Reading that metadata spans a network round trip, so a destroy can land in the middle of
-    // it. `app.destroy()` nulls the asset registry, so registering the asset now would throw
-    // from the engine's internals; reject instead, which the viewer's load chains expect.
-    if (cancelled()) {
-        throw new Error('loadGsplat: the viewer was destroyed while loading');
-    }
-
-    const asset = new Asset(filename, 'gsplat', { url: contentUrl, filename, contents: c }, data);
-
-    return new Promise<Entity>((resolve, reject) => {
-        asset.on('load', () => {
-            // always name the app: the engine's default is the most recently created one,
-            // which is another viewer's when two share a page
-            const entity = new Entity('gsplat', app);
-            entity.setLocalEulerAngles(0, 0, 180);
-            entity.addComponent('gsplat', {
-                unified: true,
-                asset
-            });
-            app.root.addChild(entity);
-            resolve(entity);
-        });
-
-        let watermark = 0;
-        asset.on('progress', (received, length) => {
-            const progress = Math.min(1, received / length) * 100;
-            if (progress > watermark) {
-                watermark = progress;
-                progressCallback(Math.trunc(watermark));
-            }
-        });
-
-        asset.on('error', (err) => {
-            console.log(err);
-            reject(err);
-        });
-
-        app.assets.add(asset);
-        app.assets.load(asset);
-    });
-};
 
 const loadSkybox = (app: AppBase, url: string) => {
     return new Promise<Asset>((resolve, reject) => {
@@ -375,7 +317,8 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         isFullscreen: false,
         controlsHidden: false,
         selectedAnnotation: null,
-        inputEnabled: true
+        inputEnabled: true,
+        room: null
     });
 
     const global: Global = {
@@ -387,7 +330,8 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         camera,
         renderer,
         root,
-        localize
+        localize,
+        rooms: null
     };
 
     const disposeCanvas = initCanvas(global);
@@ -409,7 +353,7 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
             state.progress = progress;
         },
         () => destroyed
-    );
+    ).then(({ entity }) => entity);
 
     // Load skybox (continue without if it fails — e.g. CORS, 404)
     const skyboxLoad =
@@ -466,7 +410,9 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         app,
         state,
         events,
-        annotations: global.settings.annotations,
+        get annotations() {
+            return global.settings.annotations;
+        },
         captureFrame: (captureOptions) => viewer.captureFrame(captureOptions),
         seek: (time) => viewer.seek(time),
         frameScene: () => viewer.frameScene(),

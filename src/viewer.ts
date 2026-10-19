@@ -42,6 +42,7 @@ import { Picker } from './picker';
 import type { ScenePicker } from './picker';
 import { FrameDepthPicker } from './picker-frame-depth';
 import { StochasticSplatRenderer } from './render/stochastic-splat-renderer';
+import type { ArrivalPose } from './rooms/rooms-settings';
 import type { ExperienceSettings, PostEffectSettings } from './settings';
 import { startAnnotationIndex } from './start-annotation';
 import type { CaptureOptions, Config, Global, XrMode } from './types';
@@ -229,6 +230,15 @@ class Viewer {
      */
     miniStats: MiniStats | null = null;
 
+    /** The current room's splat entity: the first scene's until a room change replaces it. */
+    currentGsplat: Entity;
+
+    /**
+     * Switch to another room's loaded entity and settings, arriving at `arrival`. Assigned once
+     * the first scene has loaded; undefined before.
+     */
+    setRoom: (room: { id: string; entity: Entity; settings: ExperienceSettings }, arrival: ArrivalPose) => void;
+
     /** Set once {@link destroy} has run. Load continuations check it and bail. */
     destroyed = false;
 
@@ -363,7 +373,7 @@ class Viewer {
         // reports the session while its 'end' handlers run
         const xrModeChanged = events.on('xrMode:changed', () => {
             if (this.destroyed) return;
-            this.configureCamera(settings);
+            this.configureCamera(this.global.settings);
         });
         this.onDestroy(() => xrModeChanged.off());
 
@@ -594,6 +604,7 @@ class Viewer {
             // destroyed while loading: the app is gone, so there is nothing to wire up
             if (this.destroyed) return;
 
+            this.currentGsplat = results[0];
             const gsplatComponent = results[0].gsplat as GSplatComponent;
 
             // get scene bounding box
@@ -705,11 +716,46 @@ class Viewer {
                 gsplat.colorUpdateAngle = state.performanceMode ? 1 : 0.2;
                 gsplat.lodBehindPenalty = state.xrMode === null ? lodBehindPenalty : 1;
                 gsplat.lodUpdateAngle = state.xrMode === null ? lodUpdateAngle : 0;
-                gsplatComponent.lodRangeMin = 0;
-                gsplatComponent.lodRangeMax = 1000;
+                const currentComponent = this.currentGsplat.gsplat as GSplatComponent;
+                currentComponent.lodRangeMin = 0;
+                currentComponent.lodRangeMax = 1000;
 
                 // request a frame so the param changes are processed (full work-buffer
                 // rebuild) even when on-demand rendering is active and the camera is idle
+                app.renderNextFrame = true;
+            };
+
+            // Room changes swap in another room's entity and settings. The room's own collision
+            // is not loaded, so any attached collision is cleared: the room flies until it has
+            // some.
+            this.setRoom = ({ id, entity, settings: roomSettings }, arrival) => {
+                global.settings = roomSettings;
+                this.currentGsplat = entity;
+
+                const roomGsplat = entity.gsplat as GSplatComponent;
+                if (roomGsplat.customAabb) {
+                    sceneBound.setFromTransformedAabb(roomGsplat.customAabb, entity.getWorldTransform());
+                }
+
+                this.configureCamera(roomSettings);
+                this.xr.setGrabTarget(entity, isWalkableSize(sceneBound));
+
+                if (state.hasCollision) {
+                    this.inputController.collision = null;
+                    this.cameraManager.setCollision(null);
+                    if (this.navCursor) {
+                        this.navCursor.collision = null;
+                    }
+                    state.hasCollision = false;
+                    state.hasCollisionOverlay = false;
+                    state.collisionOverlayEnabled = false;
+                    state.walkAllowed = false;
+                }
+
+                state.selectedAnnotation = null;
+                this.cameraManager.setRoom(roomSettings, arrival);
+                applyPerfSettings();
+                state.room = id;
                 app.renderNextFrame = true;
             };
 

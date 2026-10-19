@@ -480,6 +480,15 @@ const initXr = (global: Global) => {
             target = value instanceof VoxelCollision ? new TeleportTarget(app, value) : null;
         },
         setGrabTarget: (entity: Entity, scene: boolean) => {
+            // a room change points these at the new room's entity, so the previous ones go first
+            iceCream?.destroy();
+            iceCream = null;
+            grabMove?.destroy();
+            grabMove = null;
+            if (manipulation) {
+                parent.script.destroy(XrManipulation.scriptName);
+                manipulation = null;
+            }
             if (scene) {
                 grabMove = new XrGrabMove(app, parent, setUserScale);
             } else {

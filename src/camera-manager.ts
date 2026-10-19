@@ -14,8 +14,9 @@ import { WalkController } from './cameras/walk-controller';
 import { WalkSource } from './cameras/walk-source';
 import type { Collision } from './collision';
 import { easeOut } from './core/math';
+import type { ArrivalPose } from './rooms/rooms-settings';
 import { DEFAULT_CAMERA_FOV } from './schemas/defaults';
-import type { Annotation } from './settings';
+import type { Annotation, ExperienceSettings } from './settings';
 import type { CameraMode, Global } from './types';
 
 const tmpCamera = new Camera();
@@ -102,18 +103,24 @@ class CameraManager {
     // and the mode the camera falls back to when an animation is interrupted.
     setCollision: (collision: Collision | null) => void;
 
+    // Switch to another room: its settings, and the shared scene bound the viewer has already
+    // recomputed from the room's entity. Rebuilds the reset and frame cameras and the idle
+    // tour, places the camera at the arrival pose and snaps there.
+    setRoom: (settings: ExperienceSettings, arrival: ArrivalPose) => void;
+
     // holds the camera state
     camera = new Camera();
 
     constructor(global: Global, bbox: BoundingBox, collision: Collision | null = null) {
-        const { events, settings, state } = global;
+        const { events, state } = global;
+        let { settings } = global;
 
         let walkAllowed = isWalkAllowed(bbox, collision);
 
         const camera0 = settings.cameras[0]?.initial;
         const defaultFov = camera0?.fov ?? DEFAULT_CAMERA_FOV;
-        const frameCamera = createFrameCamera(bbox, defaultFov);
-        const resetCamera = camera0
+        let frameCamera = createFrameCamera(bbox, defaultFov);
+        let resetCamera = camera0
             ? createCamera(new Vec3(camera0.position), new Vec3(camera0.target), camera0.fov)
             : frameCamera;
 
@@ -135,7 +142,7 @@ class CameraManager {
         };
 
         // object experience starts outside the bounding box
-        const isObjectExperience = !bbox.containsPoint(resetCamera.position);
+        let isObjectExperience = !bbox.containsPoint(resetCamera.position);
         const animTrack = getAnimTrack(resetCamera, isObjectExperience);
 
         const controllers = {
@@ -215,6 +222,41 @@ class CameraManager {
             controllers.fly.collision = value;
             controllers.walk.collision = value;
             walkAllowed = isWalkAllowed(bbox, value);
+        };
+
+        this.setRoom = (value: ExperienceSettings, arrival: ArrivalPose) => {
+            settings = value;
+            walkAllowed = isWalkAllowed(bbox, controllers.walk.collision);
+
+            const roomCamera0 = settings.cameras[0]?.initial;
+            const fov = roomCamera0?.fov ?? this.camera.fov;
+            frameCamera = createFrameCamera(bbox, fov);
+            resetCamera = roomCamera0
+                ? createCamera(new Vec3(roomCamera0.position), new Vec3(roomCamera0.target), roomCamera0.fov)
+                : createCamera(new Vec3(arrival.position), new Vec3(arrival.target), fov);
+            isObjectExperience = !bbox.containsPoint(resetCamera.position);
+
+            // the idle tour follows the new room
+            const roomTrack = getAnimTrack(resetCamera, isObjectExperience);
+            controllers.anim = roomTrack ? new AnimController(roomTrack) : null;
+            state.hasAnimation = !!controllers.anim;
+            state.animationDuration = controllers.anim ? controllers.anim.animState.cursor.duration : 0;
+
+            // arrive through the door, at the room's own fov
+            this.camera.look(new Vec3(arrival.position), new Vec3(arrival.target));
+            this.camera.fov = fov;
+            controllers.orbit.fov = resetCamera.fov;
+            controllers.fly.fov = resetCamera.fov;
+
+            // keep orbit, and walk while the room still allows it; anything else flies. A mode
+            // change runs the usual handler, whose transition the snap then cancels, so the
+            // camera starts at the arrival pose with nothing carried over from the last room
+            sourcesByMode[state.cameraMode]?.cancel();
+            events.fire('navTarget:clear');
+            events.fire('orbitTarget:clear');
+            state.cameraMode =
+                state.cameraMode === 'orbit' ? 'orbit' : state.cameraMode === 'walk' && walkAllowed ? 'walk' : 'fly';
+            this.snap();
         };
 
         this.snap = () => {

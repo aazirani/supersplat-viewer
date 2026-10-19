@@ -8,6 +8,7 @@ import type { Entity, EventHandler, AppBase } from 'playcanvas';
 import type { CaptureResult } from './capture';
 import type { Localize } from './localization';
 import type { ViewerAssets, ViewerFlags } from './options';
+import type { RoomManager } from './rooms/room-manager';
 import type { Annotation, ExperienceSettings } from './settings';
 
 type CameraMode = 'orbit' | 'anim' | 'fly' | 'walk';
@@ -92,6 +93,8 @@ type State = {
      * focus or a modal is open, and to choose which of several viewers the keyboard drives.
      */
     inputEnabled: boolean;
+    /** The current room's id when the settings define rooms, else null. Read-only. */
+    room: string | null;
 };
 
 // The keys a host may set; every other key reports what the viewer found or is doing.
@@ -136,7 +139,10 @@ type ViewerHandle = {
     readonly state: ViewerState;
     /** Fires `<key>:changed` with `(value, previous)` for every key of {@link ViewerState}. */
     readonly events: EventHandler;
-    /** Annotation data in settings order, available on creation. Editing entries is unsupported. */
+    /**
+     * The current room's annotation data in settings order, available on creation. Indices are
+     * per room. Editing entries is unsupported.
+     */
     readonly annotations: readonly Readonly<Annotation>[];
     /**
      * Render the scene, with post effects, into an offscreen supersampled target and return it
@@ -222,6 +228,8 @@ type Global = {
     root: HTMLElement;
     // ui string lookup in this instance's locale
     localize: Localize;
+    // the room manager when the settings define rooms, else null
+    rooms: RoomManager<unknown> | null;
 };
 
 export { CameraMode, InputMode, XrMode, Config, State, Global, ViewerState, CaptureOptions, ViewerHandle };
