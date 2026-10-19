@@ -68,9 +68,9 @@ scene is visible. It returns:
 
 | Member | Purpose |
 | --- | --- |
-| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types |
+| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when the settings define rooms, else `null`; `room:changed` fires after each door transition |
 | `events` | Fires `<key>:changed` with `(value, previous)` for every key of `state` |
-| `annotations` | Annotation data in settings order, available as soon as creation resolves. Editing entries is unsupported |
+| `annotations` | The current room's annotation data in settings order, available as soon as creation resolves. A getter: after `room:changed` it reflects the new room. Editing entries is unsupported |
 | `captureFrame(options?)` | Renders offscreen, supersampled, and resolves to `{ width, height, data }` with `data` base64. Waits for the first frame |
 | `seek(time)` | Selects the animation camera and seeks in seconds, preserving pause state. Requires a loaded viewer with an animation; throws for non-finite time or after destruction. Requests rendering without waiting for a frame |
 | `frameScene()` | Frames the whole scene, in orbit mode; requires `state.loaded` |
@@ -156,7 +156,7 @@ The value stays active until replaced. The viewer clears it on camera/XR mode ch
 
 ### Controlling annotations
 
-`viewer.annotations` contains each annotation's title, text, position, camera and optional extras. Indices follow settings order and stay fixed for the instance. Treat the data as read-only; runtime annotation editing is not supported.
+`viewer.annotations` contains each annotation's title, text, position, camera and optional extras. Indices follow settings order. Without `rooms` they stay fixed for the instance; when rooms are configured they are per room and change on `room:changed`, so re-read `viewer.annotations` and expect `state.selectedAnnotation` to be reset to `null`. Treat the data as read-only; runtime annotation editing is not supported.
 
 `state.selectedAnnotation` is the selected index, or `null` when nothing is selected. Observe `selectedAnnotation:changed` to update custom controls or panels; it fires when the index changes. The built-in hotspots and previous/next buttons use the same `selectAnnotation(index)` command as the host:
 
@@ -225,6 +225,69 @@ yours too. Everything between the two, replacing some of the UI but keeping the 
 supported yet; the class names inside the viewer are not API and do change.
 
 [The custom UI example](https://github.com/playcanvas/supersplat-viewer/blob/main/src/dev/custom-ui.html) demonstrates loading, playback, camera modes, directional movement, annotations, preferences and fullscreen/XR using only the handle and documented state events. Run it locally at `/custom-ui?content=./scene.ply&settings=./settings.json` (`&webgl` selects WebGL). It is a development example, not a React package or a published UI component. Its controls live outside the fullscreen viewer root, so use Escape or the browser's exit affordance to leave fullscreen.
+
+## Rooms and doors
+
+An experience can span several separately scanned scenes ("rooms") connected by doorways. The
+first room is the page's own scene; the next room loads in the background as the visitor nears
+its door. Walking into the door (fly/walk mode) or tapping its marker fades to black, swaps the
+room, and fades back in at the arrival pose. Orbit mode and XR sessions never trigger a door by
+position; the marker can be tapped in any non-XR mode. A settings file without `rooms` behaves as
+before.
+
+Add the optional top-level `rooms` field to the v2 settings. The first entry takes its content
+and settings from the page, so it has no `contentUrl` or `settingsUrl`.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Unique room name, referenced by `to`. |
+| `contentUrl` | The room's splat file. Required except for the first room. |
+| `settingsUrl` | Optional. The room's own experience settings (annotations, `cameras[0]`, post effects). Missing: no annotations, and the first room's look is reused. |
+| `doors[].to` | Destination room id. |
+| `doors[].label` | Marker text, shown as written. |
+| `doors[].center`, `size` | Axis-aligned trigger box in **this** room's world coordinates (metres; `size` is the full width/height/depth). The marker sits at `center`. |
+| `doors[].preloadRadius` | Optional, default 8. Distance from `center` at which the destination starts loading. |
+| `doors[].arrival` | Camera `position` and look-at `target` in the **destination** room's coordinates. Must lie outside the destination's own door boxes. |
+
+Coordinates are world coordinates as the viewer shows them. Invalid entries (unknown `to`,
+duplicate `id`, missing `contentUrl` on a non-first room, malformed vectors) are skipped with a
+`console.warn`; the rest keeps working.
+
+```json
+"rooms": [
+    {
+        "id": "hall",
+        "doors": [
+            {
+                "to": "tunnel",
+                "label": "تونل",
+                "center": [5.0, 0.3, -5.8],
+                "size": [1.4, 2.6, 1.0],
+                "preloadRadius": 8,
+                "arrival": { "position": [-5.3, 1.35, -0.75], "target": [0, 1.2, -0.75] }
+            }
+        ]
+    },
+    {
+        "id": "tunnel",
+        "contentUrl": "./tunnel/lod-meta.json",
+        "settingsUrl": "./tunnel-settings.json",
+        "doors": [
+            {
+                "to": "hall",
+                "label": "تالار",
+                "center": [-6.8, 0.9, -0.75],
+                "size": [1.0, 2.4, 1.4],
+                "arrival": { "position": [5.0, 0.6, -4.2], "target": [5.0, 0.3, 2.0] }
+            }
+        ]
+    }
+]
+```
+
+Observe `room:changed` to follow the visitor. Annotation indices are per room, so refresh any
+custom annotation UI from `viewer.annotations` when it fires. The `rooms` member of the global
+object is internal and not part of the API.
 
 ## Settings
 
