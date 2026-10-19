@@ -178,6 +178,7 @@ export type { AnimTrack, Camera, Annotation, CameraPose, PostEffectSettings, Exp
 export type { AnimTrackLimits, AnnotationLimits, Bounds, NumericRange, PostEffectRanges } from './schemas/ranges';
 export type { CameraFit } from './schemas/defaults';
 export type { ValidateOptions };
+export type { ArrivalPose, DoorDef, RoomDef } from './rooms/rooms-settings';
 
 export {
     ANIM_TRACK_LIMITS,

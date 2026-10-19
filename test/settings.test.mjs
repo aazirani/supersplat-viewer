@@ -91,6 +91,21 @@ describe('defaults', () => {
 });
 
 describe('validateSettings', () => {
+    const roomsFixture = (to) => [
+        { id: 'hall', doors: [{ to, label: 'Tunnel', center: [0, 0, 0], size: [1, 2, 1], arrival: { position: [0, 1, 0], target: [0, 1, 1] } }] },
+        { id: 'tunnel', contentUrl: './tunnel/lod-meta.json', doors: [] }
+    ];
+
+    it('validateSettings accepts settings with valid rooms', () => {
+        const settings = { ...defaultSettings(), rooms: roomsFixture('tunnel') };
+        assert.doesNotThrow(() => validateSettings(settings));
+    });
+
+    it('validateSettings rejects rooms with an unknown door target', () => {
+        const settings = { ...defaultSettings(), rooms: roomsFixture('cellar') };
+        assert.throws(() => validateSettings(settings), /unknown room/);
+    });
+
     it('accepts a valid v2 document and rejects a broken one', () => {
         assert.doesNotThrow(() => validateSettings(defaultSettings()));
         assert.throws(() => validateSettings({ version: 2 }));
