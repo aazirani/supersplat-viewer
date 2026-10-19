@@ -268,7 +268,7 @@ const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, 
             if (destroyed()) return;
 
             const overlay = createFadeOverlay(global.root);
-            const host = createRoomHost(global, viewer, overlay);
+            const host = createRoomHost(global, viewer, overlay, rooms[0].id);
             const manager = new RoomManager(rooms, firstRoomInstance(global, rooms[0].id, entity), host);
             state.room = rooms[0].id;
 

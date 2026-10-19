@@ -760,6 +760,8 @@ class Viewer {
                 }
 
                 state.selectedAnnotation = null;
+                // held movement would carry the camera out of the arrival pose, maybe into a door
+                this.inputController.clearMoveInput();
                 this.cameraManager.setRoom(roomSettings, arrival);
                 applyPerfSettings();
                 state.room = id;

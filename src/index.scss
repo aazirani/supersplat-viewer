@@ -387,6 +387,10 @@
         width: 100%;
         height: 100%;
         background-color: black;
+        // over everything else in the root: the canvas, the annotation and door marker layers
+        // (each isolated, so their own z-indexes stay inside them) and the controls, whatever
+        // order they are added in. Nothing else under the root sets a z-index of its own.
+        z-index: 100;
         opacity: 0;
         // matches FADE_MS in rooms/fade-overlay.ts
         transition: opacity 200ms linear;

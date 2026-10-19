@@ -23,9 +23,15 @@ const loadGsplat = async (
     const { contents, contentUrl, contentFilename } = source;
     const c = contents as unknown as ArrayBuffer;
     const filename = contentName(contentUrl, contentFilename);
-    // a room's source has no prefetched response, so its metadata is fetched here
-    const data =
-        filename.toLowerCase() === 'meta.json' ? await (await (contents ?? fetch(contentUrl))).json() : undefined;
+    let data: object | undefined;
+    if (filename.toLowerCase() === 'meta.json') {
+        // a room's source has no prefetched response, so its metadata is fetched here
+        const response = await (contents ?? fetch(contentUrl));
+        if (!response.ok) {
+            throw new Error(`loadGsplat: "${contentUrl}": ${response.status} ${response.statusText}`);
+        }
+        data = await response.json();
+    }
 
     // Reading that metadata spans a network round trip, so a destroy can land in the middle of
     // it. `app.destroy()` nulls the asset registry, so registering the asset now would throw

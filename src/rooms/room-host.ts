@@ -39,7 +39,12 @@ const parkLevel = (octree: OctreeLike) => Math.max(0, Math.min(PARK_LEVEL, octre
 
 const describeError = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
-const createRoomHost = (global: Global, viewer: Viewer, overlay: FadeOverlay): RoomHost<RoomInstance> => {
+const createRoomHost = (
+    global: Global,
+    viewer: Viewer,
+    overlay: FadeOverlay,
+    firstRoomId: string
+): RoomHost<RoomInstance> => {
     const { app } = global;
 
     // the first room's settings, for rooms without a settings file of their own
@@ -52,10 +57,9 @@ const createRoomHost = (global: Global, viewer: Viewer, overlay: FadeOverlay): R
         console.warn('[rooms]', message);
     };
 
-    // Where a room's splat and settings come from. Only the first room has no contentUrl
-    // (readRooms requires one on the others): it is the page's own scene, so going back to it
-    // reloads the page's content with the page's settings.
-    const isFirst = (room: RoomDef) => !room.contentUrl;
+    // The first room is the page's own scene, whatever its entry says: going back to it reloads
+    // the page's content with the page's settings.
+    const isFirst = (room: RoomDef) => room.id === firstRoomId;
 
     const loadSettings = async (room: RoomDef): Promise<ExperienceSettings> => {
         if (isFirst(room)) return firstSettings;
@@ -73,8 +77,12 @@ const createRoomHost = (global: Global, viewer: Viewer, overlay: FadeOverlay): R
     return {
         async load(room: RoomDef): Promise<RoomInstance> {
             const { config } = global;
+            const first = isFirst(room);
+            if (!first && !room.contentUrl) {
+                throw new Error(`room "${room.id}" has no contentUrl`);
+            }
             // the page's prefetched response was consumed by the first load, so it is not reused
-            const source = isFirst(room)
+            const source = first
                 ? { contentUrl: config.contentUrl, contentFilename: config.contentFilename }
                 : { contentUrl: room.contentUrl };
             const settings = await loadSettings(room);
