@@ -42,6 +42,22 @@ function transpileTypescript() {
     };
 }
 
+// Fonts the viewer carries, imported as data urls, so the bundle needs no file beside it
+function fontPlugin() {
+    return {
+        name: 'font',
+        load(id) {
+            if (!id.endsWith('.woff2')) return null;
+            this.addWatchFile(id);
+            const data = readFileSync(id).toString('base64');
+            return {
+                code: `export default ${JSON.stringify(`data:font/woff2;base64,${data}`)};`,
+                map: { mappings: '' }
+            };
+        }
+    };
+}
+
 const watching = process.env.ROLLUP_WATCH === 'true';
 const typescriptPlugin = (options) => (watching ? transpileTypescript() : typescript(options));
 
@@ -155,6 +171,7 @@ const buildPublic = {
         resolve(debugEngine ? { exportConditions: ['development'] } : {}),
         typescriptPlugin(),
         json(),
+        fontPlugin(),
         htmlTemplatePlugin(),
         htmlPlugin()
     ]
@@ -195,6 +212,7 @@ const buildViewer = {
         resolve(),
         typescriptPlugin(),
         json(),
+        fontPlugin(),
         htmlTemplatePlugin(),
         {
             name: 'viewer-css',
@@ -235,7 +253,7 @@ const buildDistTypes = {
 const buildViewerTypes = {
     input: 'src/index.ts',
     output: { file: 'dist/viewer.d.ts', format: 'es' },
-    external: [...engineExternal, /\.html$/, /package\.json$/],
+    external: [...engineExternal, /\.html$/, /\.woff2$/, /package\.json$/],
     plugins: [dts()]
 };
 

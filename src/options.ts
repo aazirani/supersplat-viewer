@@ -102,8 +102,18 @@ type ViewerFlags = {
     heatmap?: boolean;
     /** Open the developer debug panel on load; Ctrl+Shift+D toggles it either way. */
     debug?: boolean;
-    /** Ui language. Default: detected from the browser. */
+    /** Ui language. Default: {@link ViewerFlags.defaultLang}, then detected from the browser. */
     lang?: string;
+    /**
+     * The site's own ui language, for every visitor whatever their browser's; `lang` (a link's
+     * `?lang=`) still overrides it. Default: detected from the browser.
+     */
+    defaultLang?: string;
+    /**
+     * Fly to this annotation once the scene has loaded, selecting it: its number as its hotspot
+     * shows it, 1 for the first. Ignored when the scene has no annotation by that number.
+     */
+    annotation?: number;
     /**
      * Publish `window.app`, `scrubTo`, `captureFrame`, `animationDuration` and the debug panel's
      * camera-state hooks. The standalone document turns this on for the thumbnail pipeline; an

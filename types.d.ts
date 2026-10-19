@@ -4,9 +4,9 @@ interface Window {
     // the container and the settings. `settings` is a plain object when the embedder inlined
     // one into the #sse-bootstrap block, and a promise of the fetched json otherwise.
     sse: {
-        options: Omit<import('./src/options').CreateViewerOptions, 'container' | 'settings'>,
-        settings: object | Promise<object>
-    }
+        options: Omit<import('./src/options').CreateViewerOptions, 'container' | 'settings'>;
+        settings: object | Promise<object>;
+    };
 
     firstFrame?: () => void;
 
@@ -14,7 +14,12 @@ interface Window {
 
     scrubTo?: (time: number) => Promise<void>;
 
-    captureFrame?: (options?: { time?: number; width?: number; height?: number; supersample?: number }) => Promise<{ width: number; height: number; data: string }>;
+    captureFrame?: (options?: {
+        time?: number;
+        width?: number;
+        height?: number;
+        supersample?: number;
+    }) => Promise<{ width: number; height: number; data: string }>;
 
     animationDuration?: number;
 
@@ -60,6 +65,12 @@ declare module '*.html' {
 }
 
 declare module '*.css' {
+    const content: string;
+    export default content;
+}
+
+declare module '*.woff2' {
+    // the font as a data url, from rollup.config.mjs's woff2 plugin
     const content: string;
     export default content;
 }

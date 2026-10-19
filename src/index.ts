@@ -18,6 +18,7 @@ import { MeshCollision, loadVoxelCollision } from './collision';
 import type { Collision } from './collision';
 import { observe } from './core/observe';
 import { initLocalization } from './localization';
+import { addPersianFont } from './persian-font';
 import type { CreateViewerOptions } from './options';
 import { persistPreferences, readPreferences } from './preferences';
 import { importSettings } from './settings';
@@ -301,6 +302,8 @@ const resolveConfig = (options: CreateViewerOptions): Config => ({
     heatmap: options.heatmap ?? false,
     debug: options.debug ?? false,
     lang: options.lang,
+    defaultLang: options.defaultLang,
+    annotation: options.annotation,
     exposeGlobals: options.exposeGlobals ?? false
 });
 
@@ -347,7 +350,8 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
     const { app, camera, renderer } = await createApp(canvas, config);
 
     // translate the markup and get this instance's string lookup, before the ui reads any
-    const localize = initLocalization(config.lang, root);
+    addPersianFont();
+    const localize = initLocalization(config.lang, config.defaultLang, root);
 
     const state = observe<State>(events, {
         loaded: false,

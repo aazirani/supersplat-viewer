@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "Salir de VR",
     "xr-menu.exit-ar": "Salir de AR",
     "xr-menu.ice-cream": "Modo helado",
-    "xr-hint.stalled": "¿No pasa nada? Cambia de pestaña y vuelve."
+    "xr-hint.stalled": "¿No pasa nada? Cambia de pestaña y vuelve.",
+
+    "annotation.more-info": "Más información",
+    "link-panel.open-in-new-tab": "Abrir en una pestaña nueva",
+    "link-panel.close": "Cerrar"
 }

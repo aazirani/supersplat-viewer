@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "退出 VR",
     "xr-menu.exit-ar": "退出 AR",
     "xr-menu.ice-cream": "冰淇淋模式",
-    "xr-hint.stalled": "没有反应？切换到其他标签页再切回来。"
+    "xr-hint.stalled": "没有反应？切换到其他标签页再切回来。",
+
+    "annotation.more-info": "更多信息",
+    "link-panel.open-in-new-tab": "在新标签页中打开",
+    "link-panel.close": "关闭"
 }

@@ -119,6 +119,22 @@ describe('validateSettings', () => {
         assert.throws(() => validateSettings(settings, { limits: true }), /cameras\[0\].initial.fov/);
     });
 
+    it('allows annotation text up to a museum description, 1000 characters, when asked', () => {
+        const annotation = (text) => ({
+            position: [0, 0, 0],
+            title: 'Moviola UD 20 CS',
+            text,
+            camera: clone(defaultSettings().cameras[0])
+        });
+        const settings = clone(defaultSettings());
+
+        settings.annotations = [annotation('م'.repeat(1000))];
+        assert.doesNotThrow(() => validateSettings(settings, { limits: true }));
+
+        settings.annotations = [annotation('م'.repeat(1001))];
+        assert.throws(() => validateSettings(settings, { limits: true }), /annotations\[0\].text must be at most 1000/);
+    });
+
     it('allows more than one camera — the format permits it even though the viewer reads only the first', () => {
         const settings = clone(defaultSettings());
         settings.cameras.push(structuredClone(settings.cameras[0]));

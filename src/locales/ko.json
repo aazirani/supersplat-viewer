@@ -74,5 +74,9 @@
     "xr-menu.exit-vr": "VR 종료",
     "xr-menu.exit-ar": "AR 종료",
     "xr-menu.ice-cream": "아이스크림 모드",
-    "xr-hint.stalled": "반응이 없나요? 다른 탭으로 전환했다가 돌아오세요."
+    "xr-hint.stalled": "반응이 없나요? 다른 탭으로 전환했다가 돌아오세요.",
+
+    "annotation.more-info": "자세히 보기",
+    "link-panel.open-in-new-tab": "새 탭에서 열기",
+    "link-panel.close": "닫기"
 }
