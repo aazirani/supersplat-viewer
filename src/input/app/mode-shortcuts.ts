@@ -82,14 +82,12 @@ class ModeShortcuts {
             case 'r':
                 events.fire('inputEvent', 'reset', event);
                 break;
+            // WASD moves in first person, as the arrow keys do, but leaves gaming controls to G or
+            // the settings: they capture the pointer and hide the annotations, so a visitor
+            // walking round a scan would lose the hotspots until they pressed Escape
             default:
-                if (isWasdKey(event) && state.inputMode === 'desktop') {
-                    if (!isCaptureMode(state.cameraMode)) {
-                        events.fire('inputEvent', 'requestFirstPerson');
-                    }
-                    if (!state.gamingControls) {
-                        state.gamingControls = true;
-                    }
+                if (isWasdKey(event) && state.inputMode === 'desktop' && !isCaptureMode(state.cameraMode)) {
+                    events.fire('inputEvent', 'requestFirstPerson');
                 }
                 break;
         }
