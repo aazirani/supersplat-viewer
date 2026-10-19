@@ -8,9 +8,13 @@ import type { ViewerHandle } from '../types';
 
 import { Annotation, AnnotationContext } from './annotation';
 import type { LinkPanel } from './link-panel';
+import { OcclusionSchedule } from './occlusion-schedule';
 
 // how long the camera must be still before the hotspots are tested against the scene
 const SETTLE_MS = 150;
+
+// how often a camera that moves by itself, as the idle tour does, is tested as it goes
+const MOVING_TEST_MS = 1000;
 
 // the scene in front of a hotspot must be at least this opaque to hide it, so haze does not
 const OCCLUDING_OPACITY = 0.5;
@@ -119,18 +123,18 @@ class Annotations {
 
         // Occlusion: a hotspot is either in front of the scene or behind it, never partly
         // covered. Once the camera has been still for a moment, pick the scene at every hotspot
-        // on screen and fade the ones it covers; while the camera moves they keep their state.
-        // One pick pass per stop, not per frame.
+        // on screen and fade the ones it covers; while the visitor moves they keep their state.
+        // One pick pass per stop, not per frame, and about one a second while an animation plays
         let destroyed = false;
-        let settleTimer: ReturnType<typeof setTimeout> | null = null;
         // bumped on every camera move, so a test that resolves after the camera moved again is
         // discarded rather than applied to a pose it was not taken from
         let pose = 0;
         const lastWorld = new Mat4();
         const lastProjection = new Mat4();
 
-        const testOcclusion = async () => {
-            settleTimer = null;
+        // `moving`: a test taken while an animation plays, whose camera has moved on a little by
+        // the time it finishes. Its result stands: the camera never stops for a test to wait for
+        const testOcclusion = async (moving: boolean) => {
             const picker = getPicker();
             if (destroyed || !picker || parentDom.style.display === 'none') return;
 
@@ -157,17 +161,20 @@ class Annotations {
                 // the next camera stop or content change tests again
                 return;
             }
-            if (destroyed || testedPose !== pose) return;
+            if (destroyed || (!moving && testedPose !== pose)) return;
 
             targets.forEach((script, i) => {
                 script.setOccluded((opacities[i] ?? 0) >= OCCLUDING_OPACITY);
             });
         };
 
-        const scheduleOcclusion = () => {
-            if (settleTimer) clearTimeout(settleTimer);
-            settleTimer = setTimeout(testOcclusion, SETTLE_MS);
-        };
+        const schedule = new OcclusionSchedule(
+            (moving) => {
+                testOcclusion(moving);
+            },
+            SETTLE_MS,
+            MOVING_TEST_MS
+        );
 
         // A new camera transition (a reset, say): the tooltip hides until it nearly ends, as on
         // the move to an annotation. Checked after the camera update but before the frame
@@ -209,7 +216,7 @@ class Annotations {
             lastWorld.copy(world);
             lastProjection.copy(projectionMatrix);
             pose++;
-            scheduleOcclusion();
+            schedule.moved(state.cameraMode === 'anim');
         };
         app.on('frameend', onFrameEnd);
 
@@ -223,7 +230,7 @@ class Annotations {
             if (frameCamera !== camera.camera) return;
             if (ready && !contentReady) {
                 pose++;
-                scheduleOcclusion();
+                schedule.settle();
             }
             contentReady = ready;
         };
@@ -231,7 +238,7 @@ class Annotations {
 
         this.removeOcclusion = () => {
             destroyed = true;
-            if (settleTimer) clearTimeout(settleTimer);
+            schedule.cancel();
             app.off('framerender', onFrameRender);
             app.off('frameend', onFrameEnd);
             gsplatSystem.off('frame:ready', onFrameReady);
@@ -244,7 +251,7 @@ class Annotations {
             const wasHidden = parentDom.style.display === 'none';
             parentDom.style.display = hidden ? 'none' : 'block';
             // hotspots coming back may have been covered or uncovered while hidden
-            if (wasHidden && !hidden) scheduleOcclusion();
+            if (wasHidden && !hidden) schedule.settle();
             const selected = hidden || state.selectedAnnotation === null ? null : scripts[state.selectedAnnotation];
             if (selected !== context.activeAnnotation) {
                 context.activeAnnotation?.hideTooltip();

@@ -2,9 +2,18 @@ import { Script, Vec3 } from 'playcanvas';
 import type { Entity } from 'playcanvas';
 
 import { parseAnnotationText, textDirection } from './annotation-links';
+import { distanceFade } from './hotspot-fade';
 import type { LinkPanel } from './link-panel';
 
 const vec = new Vec3();
+
+// a hotspot shows fully up to this distance from the camera, in scene units, and is gone from
+// the far one on: a room's nearer exhibits show, the far side's wait until the visitor nears
+const FADE_NEAR = 4;
+const FADE_FAR = 12;
+
+// one ripple's spread from the hotspot, and the pause before the next
+const RIPPLE_MS = 2600;
 
 // more characters than this, and the tooltip widens for the text
 const LONG_TEXT = 280;
@@ -32,7 +41,8 @@ const linkTo = (anchor: HTMLAnchorElement, url: string, title: string, ctx: Anno
 /**
  * A script for creating interactive 3D annotations in a scene. Each annotation consists of:
  *
- * - A hotspot: a dom circle with the annotation's number, kept over the annotation's position.
+ * - A hotspot: a dom point with a ring rippling out from it, kept over the annotation's
+ * position and fading with distance from the camera so only the nearer ones show.
  * `Annotations` tests it against the scene and marks it occluded, which fades it rather than
  * letting the scene cover it pixel by pixel. It stays clickable either way.
  * - An annotation panel that shows title and description text, shared by every annotation. Links
@@ -70,6 +80,13 @@ export class Annotation extends Script {
     hotspotDom: HTMLDivElement | null = null;
 
     /**
+     * The hotspot's distance fade as last written to its style, so a still hotspot is not
+     * restyled every frame.
+     * @private
+     */
+    fade = 1;
+
+    /**
      * The hotspot's position in canvas pixels, its distance from the camera and its depth
      * along the view, as of the last update; null while it is behind the camera. Read by the
      * occlusion test.
@@ -91,7 +108,31 @@ export class Annotation extends Script {
         // dimmed until the occlusion test first shows it in view, rather than every hotspot
         // showing at full strength on the reveal and the hidden ones fading afterwards
         this.hotspotDom.className = 'sse-annotation-hotspot sse-occluded';
-        this.hotspotDom.textContent = this.label;
+        // a dot, not a number: its name is for assistive technology
+        this.hotspotDom.setAttribute('role', 'button');
+        this.hotspotDom.setAttribute('aria-label', this.title || this.label);
+
+        // a ring spreading out from the point now and then, so it reads as something to touch.
+        // Played here rather than by a css animation, whose @keyframes name would be global;
+        // each starts at its own point in the cycle, so the scene does not pulse in step
+        const ripple = document.createElement('span');
+        ripple.className = 'sse-annotation-ripple';
+        this.hotspotDom.appendChild(ripple);
+        if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+            ripple.animate(
+                [
+                    { transform: 'scale(0.35)', opacity: 0.9 },
+                    { transform: 'scale(1)', opacity: 0, offset: 0.7 },
+                    { transform: 'scale(1)', opacity: 0 }
+                ],
+                {
+                    duration: RIPPLE_MS,
+                    delay: -Math.random() * RIPPLE_MS,
+                    easing: 'ease-out',
+                    iterations: Infinity
+                }
+            );
+        }
 
         const onClick = (e: MouseEvent) => {
             e.stopPropagation();
@@ -263,6 +304,14 @@ export class Annotation extends Script {
         hotspot.style.transform = `translate(${screenPos.x}px, ${screenPos.y}px) translate(-50%, -50%)`;
         // nearer hotspots draw over farther ones
         hotspot.style.zIndex = String(Math.round(100000 / (1 + distance)));
+
+        // farther ones fade, and the farthest go, so a room's far side does not crowd the view
+        const fade = Math.round(distanceFade(distance, FADE_NEAR, FADE_FAR) * 100) / 100;
+        if (fade !== this.fade) {
+            this.fade = fade;
+            hotspot.style.setProperty('--sse-hotspot-fade', String(fade));
+            hotspot.classList.toggle('sse-far', fade === 0);
+        }
 
         const ctx = this.context;
         if (ctx.tooltipOwner !== this) {
