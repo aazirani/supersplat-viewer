@@ -6,7 +6,7 @@ import type { CameraMode } from '../types.ts';
 
 import { evaluateDoors } from './door-trigger.ts';
 import type { Point } from './door-trigger.ts';
-import type { ArrivalPose, RoomDef } from './rooms-settings.ts';
+import type { ArrivalPose, DoorDef, RoomDef } from './rooms-settings.ts';
 
 // How long the screen may stay black waiting for a room before the spinner shows.
 const FADE_WAIT_SPINNER_MS = 300;
@@ -94,17 +94,48 @@ class RoomManager<R> {
         }
 
         if (decision.enter !== null) {
-            this.enter(decision.enter);
+            // enter reports its own failures through host.warn; only a throwing warn reaches here
+            this.enter(decision.enter).catch((): void => undefined);
         }
     }
 
-    // Goes through a door of the current room. Ignored while a transition runs.
+    // Goes through a door of the current room. Ignored while a transition runs. Whatever the host
+    // throws, the screen is faded back in and the manager is no longer busy afterwards.
     async enter(doorIndex: number): Promise<void> {
         const door = this.room.doors[doorIndex];
         const destination = door && this.rooms.get(door.to);
         if (this.entering || this.destroyed || !destination) return;
 
         this.entering = true;
+        const from = this.room;
+        try {
+            await this.transition(doorIndex, door, destination);
+        } catch (err) {
+            // the host threw while fading or swapping the rooms
+            if (!this.destroyed) {
+                // still in the old room: the walk-in must leave the door before it retries
+                if (this.room === from) this.armed[doorIndex] = false;
+                await this.fadeIn();
+                this.host.warn(`rooms: moving to room "${destination.id}" failed: ${describeError(err)}`);
+            }
+        } finally {
+            this.clearSpinner();
+            this.entering = false;
+        }
+    }
+
+    // Releases the parked room and stops any transition or preload in flight.
+    destroy() {
+        this.destroyed = true;
+        this.clearSpinner();
+        const parked = this.parked;
+        this.parked = null;
+        if (parked?.instance !== undefined) this.host.release(parked.instance);
+    }
+
+    // Spec "Transition sequence" steps 2-7. A load or ready failure is handled here; anything else
+    // the host throws propagates to `enter`.
+    private async transition(doorIndex: number, door: DoorDef, destination: RoomDef): Promise<void> {
         const host = this.host;
 
         const fadedOut = host.fade(true);
@@ -130,45 +161,47 @@ class RoomManager<R> {
             if (this.destroyed) return;
             this.clearSpinner();
             host.setWaiting(false);
+            // background preloading of it waits until the camera re-approaches
+            this.failed.add(destination.id);
             if (this.parked === parked) {
                 this.parked = null;
                 if (instance !== undefined) host.release(instance);
             }
             // A walk-in must leave the door before it retries, or a broken room would loop.
             this.armed[doorIndex] = false;
-            await host.fade(false);
+            await this.fadeIn();
             host.warn(`rooms: could not open room "${destination.id}": ${describeError(err)}`);
-            this.entering = false;
             return;
-        } finally {
-            if (this.destroyed) this.clearSpinner();
         }
 
         this.clearSpinner();
         if (waiting) host.setWaiting(false);
 
-        this.parked = null;
-        const previous = this.instance;
+        // if activate throws, the room stays parked (released on destroy or replaced later)
         host.activate(instance, destination, door.arrival);
-        host.release(previous);
+        this.parked = null;
 
+        const previous = this.instance;
         this.room = destination;
         this.instance = instance;
         this.armed = destination.doors.map(() => false);
         this.failed.clear();
-        this.onChange?.(destination);
+        try {
+            host.release(previous);
+        } finally {
+            this.onChange?.(destination);
+        }
 
-        await host.fade(false);
-        this.entering = false;
+        await this.fadeIn();
     }
 
-    // Releases the parked room and stops any transition or preload in flight.
-    destroy() {
-        this.destroyed = true;
-        this.clearSpinner();
-        const parked = this.parked;
-        this.parked = null;
-        if (parked?.instance !== undefined) this.host.release(parked.instance);
+    // Best-effort fade back in: a failing fade is reported, never left to keep the manager busy.
+    private async fadeIn(): Promise<void> {
+        try {
+            await this.host.fade(false);
+        } catch (err) {
+            this.host.warn(`rooms: could not fade in: ${describeError(err)}`);
+        }
     }
 
     // Starts loading a room into the slot, releasing whatever was parked there.

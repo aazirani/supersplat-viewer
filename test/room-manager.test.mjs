@@ -388,4 +388,162 @@ describe('RoomManager', () => {
         assert.equal(count(host, 'waiting:true'), 0);
         assert.deepEqual(changes, []);
     });
+
+    it('a whenReady failure is not retried in the background until the camera re-approaches', async () => {
+        manager.start();
+        manager.update(farAway, 'walk', false); // arms the door
+        manager.update(nearHallDoor, 'walk', false);
+        lastLoad(host, 'tunnel').resolve('tunnel-instance');
+        await flush();
+        manager.update(inHallDoor, 'walk', false);
+        await flush();
+        lastReady(host, 'tunnel').reject(new Error('tiles failed'));
+        await flush();
+        await flush();
+        assert.equal(manager.busy, false);
+
+        manager.update(nearHallDoor, 'walk', false);
+        assert.equal(count(host, 'load:tunnel'), 1);
+
+        manager.update(farAway, 'walk', false);
+        manager.update(nearHallDoor, 'walk', false);
+        assert.equal(count(host, 'load:tunnel'), 2);
+    });
+});
+
+describe('RoomManager when the host throws', () => {
+    let host;
+    let manager;
+    let unhandled;
+    const onUnhandled = (reason) => unhandled.push(reason);
+
+    beforeEach(() => {
+        mock.timers.enable({ apis: ['setTimeout'] });
+        unhandled = [];
+        process.on('unhandledRejection', onUnhandled);
+        host = fakeHost();
+        manager = new RoomManager(specRooms(), 'hall-instance', host);
+        manager.start();
+    });
+
+    afterEach(() => {
+        process.off('unhandledRejection', onUnhandled);
+        mock.timers.reset();
+    });
+
+    // Walks into the hall door with the tunnel preloaded, and lets it become ready.
+    const walkIn = async () => {
+        manager.update(farAway, 'walk', false);
+        manager.update(nearHallDoor, 'walk', false);
+        lastLoad(host, 'tunnel').resolve('tunnel-instance');
+        await flush();
+        manager.update(inHallDoor, 'walk', false);
+        await flush();
+        lastReady(host, 'tunnel').resolve();
+        await flush();
+        await flush();
+    };
+
+    const warnings = () => host.calls.filter((c) => c.startsWith('warn:'));
+
+    it('activate throwing: fades back in, warns, stays in the hall, not busy, no unhandled rejection', async () => {
+        host.activate = (instance) => {
+            host.calls.push(`activate:${name(instance)}`);
+            throw new Error('activate broke');
+        };
+        await walkIn();
+
+        assert.equal(manager.busy, false);
+        assert.equal(manager.current.id, 'hall');
+        assert.ok(host.calls.indexOf('fade:false') > host.calls.indexOf('activate:tunnel'));
+        assert.equal(warnings().length, 1);
+        assert.match(warnings()[0], /activate broke/);
+        assert.equal(count(host, 'release:hall'), 0);
+        assert.deepEqual(unhandled, []);
+
+        // the door was disarmed (no loop) and the parked tunnel is kept for a retry
+        manager.update(inHallDoor, 'walk', false);
+        assert.equal(manager.busy, false);
+        assert.equal(count(host, 'release:tunnel'), 0);
+        manager.destroy();
+        assert.equal(count(host, 'release:tunnel'), 1);
+    });
+
+    it('release of the old room throwing: still arrives in the tunnel and fades in', async () => {
+        const changes = [];
+        manager.onChange = (room) => changes.push(room.id);
+        host.release = (instance) => {
+            host.calls.push(`release:${name(instance)}`);
+            throw new Error('release broke');
+        };
+        await walkIn();
+
+        assert.equal(manager.busy, false);
+        assert.equal(manager.current.id, 'tunnel');
+        assert.deepEqual(changes, ['tunnel']);
+        assert.ok(host.calls.indexOf('fade:false') > host.calls.indexOf('release:hall'));
+        assert.equal(warnings().length, 1);
+        assert.deepEqual(unhandled, []);
+    });
+
+    it('onChange throwing: not busy, faded in, warned', async () => {
+        manager.onChange = () => {
+            throw new Error('listener broke');
+        };
+        await walkIn();
+
+        assert.equal(manager.busy, false);
+        assert.equal(manager.current.id, 'tunnel');
+        assert.equal(count(host, 'fade:false'), 1);
+        assert.equal(warnings().length, 1);
+        assert.deepEqual(unhandled, []);
+    });
+
+    it('the final fade in rejecting: not busy, warned, no unhandled rejection', async () => {
+        host.fade = (opaque) => {
+            host.calls.push(`fade:${opaque}`);
+            return opaque ? Promise.resolve() : Promise.reject(new Error('fade broke'));
+        };
+        await walkIn();
+
+        assert.equal(manager.busy, false);
+        assert.equal(manager.current.id, 'tunnel');
+        assert.equal(warnings().length, 1);
+        assert.deepEqual(unhandled, []);
+    });
+
+    it('the fade in after a failed load rejecting: not busy, no unhandled rejection', async () => {
+        host.fade = (opaque) => {
+            host.calls.push(`fade:${opaque}`);
+            return opaque ? Promise.resolve() : Promise.reject(new Error('fade broke'));
+        };
+        manager.update(farAway, 'walk', false);
+        manager.update(inHallDoor, 'walk', false);
+        lastLoad(host, 'tunnel').reject(new Error('404'));
+        await flush();
+        await flush();
+
+        assert.equal(manager.busy, false);
+        assert.equal(manager.current.id, 'hall');
+        assert.ok(warnings().some((w) => /404/.test(w)));
+        assert.deepEqual(unhandled, []);
+    });
+
+    it('fade out throwing: not busy, warned, no unhandled rejection', async () => {
+        host.fade = (opaque) => {
+            host.calls.push(`fade:${opaque}`);
+            if (opaque) throw new Error('fade broke');
+            return Promise.resolve();
+        };
+        manager.update(farAway, 'walk', false);
+        manager.update(inHallDoor, 'walk', false);
+        await flush();
+        await flush();
+
+        assert.equal(manager.busy, false);
+        assert.equal(manager.current.id, 'hall');
+        assert.equal(count(host, 'fade:false'), 1);
+        assert.equal(warnings().length, 1);
+        assert.deepEqual(unhandled, []);
+    });
 });
