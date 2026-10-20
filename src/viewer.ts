@@ -231,7 +231,13 @@ class Viewer {
     miniStats: MiniStats | null = null;
 
     /** The current room's splat entity: the first scene's until a room change replaces it. */
-    currentGsplat: Entity;
+    // the active room's gsplat entity, once the first scene has loaded
+    private activeGsplat: Entity | null = null;
+
+    /** The active room's gsplat entity; null before the first scene has loaded. */
+    get currentGsplat(): Entity | null {
+        return this.activeGsplat;
+    }
 
     /**
      * Switch to another room's loaded entity and settings, arriving at `arrival`. Assigned once
@@ -604,7 +610,7 @@ class Viewer {
             // destroyed while loading: the app is gone, so there is nothing to wire up
             if (this.destroyed) return;
 
-            this.currentGsplat = results[0];
+            this.activeGsplat = results[0];
             const gsplatComponent = results[0].gsplat as GSplatComponent;
 
             // get scene bounding box
@@ -718,7 +724,7 @@ class Viewer {
                 gsplat.colorUpdateAngle = state.performanceMode ? 1 : 0.2;
                 gsplat.lodBehindPenalty = state.xrMode === null ? lodBehindPenalty : 1;
                 gsplat.lodUpdateAngle = state.xrMode === null ? lodUpdateAngle : 0;
-                const currentComponent = this.currentGsplat.gsplat as GSplatComponent;
+                const currentComponent = (this.activeGsplat as Entity).gsplat as GSplatComponent;
                 currentComponent.lodRangeMin = 0;
                 currentComponent.lodRangeMax = 1000;
 
@@ -732,7 +738,7 @@ class Viewer {
             // some.
             this.setRoom = ({ id, entity, settings: roomSettings }, arrival) => {
                 global.settings = roomSettings;
-                this.currentGsplat = entity;
+                this.activeGsplat = entity;
 
                 const roomGsplat = entity.gsplat as GSplatComponent;
                 if (roomGsplat.customAabb) {

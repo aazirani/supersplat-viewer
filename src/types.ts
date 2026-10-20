@@ -95,6 +95,8 @@ type State = {
     inputEnabled: boolean;
     /** The current room's id when the settings define rooms, else null. Read-only. */
     room: string | null;
+    /** Silences the scene's sound: the video screens and the ambient track. Persisted; off by default. */
+    muted: boolean;
 };
 
 // The keys a host may set; every other key reports what the viewer found or is doing.
@@ -111,7 +113,8 @@ type WritableStateKey =
     | 'animationPaused'
     | 'collisionOverlayEnabled'
     | 'controlsHidden'
-    | 'inputEnabled';
+    | 'inputEnabled'
+    | 'muted';
 
 /**
  * The viewer's state as a host sees it: one observable object, with the keys the viewer owns

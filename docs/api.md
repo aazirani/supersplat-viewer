@@ -68,7 +68,7 @@ scene is visible. It returns:
 
 | Member | Purpose |
 | --- | --- |
-| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when two or more usable rooms are configured, else `null`. It stays `null` until the first scene has loaded, then `room:changed` fires once with the first room's id (before `loaded` turns true). On each door transition it fires while the screen is black: after the new room is in place and before the old room is released and the view fades back in |
+| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`, `muted`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when two or more usable rooms are configured, else `null`. It stays `null` until the first scene has loaded, then `room:changed` fires once with the first room's id (before `loaded` turns true). On each door transition it fires while the screen is black: after the new room is in place and before the old room is released and the view fades back in |
 | `events` | Fires `<key>:changed` with `(value, previous)` for every key of `state` |
 | `annotations` | The current room's annotation data in settings order, available as soon as creation resolves. A getter: after `room:changed` it reflects the new room. Editing entries is unsupported |
 | `captureFrame(options?)` | Renders offscreen, supersampled, and resolves to `{ width, height, data }` with `data` base64. Waits for the first frame |
@@ -152,7 +152,7 @@ The value stays active until replaced. The viewer clears it on camera/XR mode ch
 
 ### Saved preferences
 
-`performanceMode`, `gamingControls` and `showAnnotations` load from and write changes to the existing origin-wide local-storage keys, with or without the built-in UI. Creation does not write defaults; the legacy `retinaDisplay` migration is preserved. A new viewer reads the saved values; already-mounted viewers keep their own state rather than synchronizing through storage. The host can change these preferences through the corresponding writable state fields. Storage denial or quota errors leave the viewer usable, and destruction removes its persistence subscriptions. The built-in UI also remembers whether its controls panel is open, under the origin-wide key `controlsPanelOpen`; it is open for a new visitor until they close it.
+`performanceMode`, `gamingControls`, `showAnnotations` and `muted` load from and write changes to the existing origin-wide local-storage keys, with or without the built-in UI. Creation does not write defaults; the legacy `retinaDisplay` migration is preserved. A new viewer reads the saved values; already-mounted viewers keep their own state rather than synchronizing through storage. The host can change these preferences through the corresponding writable state fields. Storage denial or quota errors leave the viewer usable, and destruction removes its persistence subscriptions. The built-in UI also remembers whether its controls panel is open, under the origin-wide key `controlsPanelOpen`; it is open for a new visitor until they close it.
 
 ### Controlling annotations
 

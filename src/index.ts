@@ -30,6 +30,7 @@ import { importSettings } from './settings';
 import type { Config, Global, State, ViewerHandle } from './types';
 import { initPoster, initUI } from './ui';
 import uiHtml from './ui.html';
+import { initVideoScreens } from './video/video-screens';
 import { Viewer } from './viewer';
 import { version as appVersion } from '../package.json';
 
@@ -470,26 +471,6 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         }
     }
 
-    // Load and play sound
-    let disposeAudio: (() => void) | undefined;
-    if (global.settings.soundUrl) {
-        const sound = new Audio(global.settings.soundUrl);
-        sound.crossOrigin = 'anonymous';
-        const unlock = () => {
-            if (sound) {
-                sound.play();
-            }
-        };
-        root.addEventListener('click', unlock, {
-            capture: true,
-            once: true
-        });
-        disposeAudio = () => {
-            root.removeEventListener('click', unlock, { capture: true });
-            sound.pause();
-        };
-    }
-
     // Create the viewer
     const viewer = new Viewer(global, gsplatLoad, skyboxLoad, collisionLoad);
     viewer.onDestroy(persistPreferences(events));
@@ -530,11 +511,9 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
     if (disposeUI) {
         viewer.onDestroy(disposeUI);
     }
-    if (disposeAudio) {
-        viewer.onDestroy(disposeAudio);
-    }
-
     initRooms(global, viewer, gsplatLoad, () => destroyed);
+    // the room's video screens and sound, including the ambient `soundUrl` track
+    initVideoScreens(global, viewer, gsplatLoad);
 
     return handle;
 };
