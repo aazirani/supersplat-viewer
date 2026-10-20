@@ -75,6 +75,10 @@
     "xr-menu.exit-ar": "Выйти из AR",
     "xr-menu.ice-cream": "Режим мороженого",
     "xr-hint.stalled": "Ничего не происходит? Переключитесь на другую вкладку и вернитесь.",
+    "door.loading": "Загрузка…",
+    "door.loading-percent": "Загрузка {percent}",
+    "door.cancel": "Нажмите, чтобы отменить",
+    "door.unavailable": "Недоступно. Нажмите, чтобы повторить",
 
     "annotation.more-info": "Подробнее",
     "link-panel.open-in-new-tab": "Открыть в новой вкладке",

@@ -246,3 +246,32 @@ In the browser, on the real hall and tunnel (served from `public/`):
 - Seamless (aligned, no-fade) transitions.
 - Stochastic renderer: rooms must share one splat format (the stochastic renderer compiles for
   the first format it sees); both current rooms are SOG LOD, so this holds.
+
+## Revision 2026-10-20: slow connections
+
+Reviewed with slow connections in mind; the museum rooms are about 180 MB each, with 13-14 MB in
+the coarsest level. Changes from the design above:
+
+- **Ready at the coarsest level.** A parked room is held at, and ready once it has, its coarsest
+  level: the same bar the page uses for its first reveal (was level 2, twice the data).
+- **No black wait.** A door entered before its room is ready does not fade. The visitor waits in
+  the current room; the marker fills a ring with the byte progress and says "Loading 42%" under
+  the room's name. A walk-in goes through the moment the room is ready while the visitor stays in
+  the doorway (stepping out, orbit mode or XR cancels it); a tapped door goes through wherever the
+  visitor is, and a second tap cancels. Loading continues after a cancel. The black-screen
+  spinner is gone.
+- **Progress in bytes.** Readiness and the marker read the engine's per-file asset progress, so
+  two 7 MB files show a smooth percentage, and the 30 s stall timeout resets on any bytes rather
+  than on a whole file landing (a slow link downloading both files for a minute no longer counts
+  as stalled).
+- **Preloading waits for the current room, then always runs.** Background preloading starts once
+  a rendered frame has had nothing left to stream for the view, or after 15 s in the room, so a
+  room sharpens before the next one competes for the connection. From then on the room behind
+  the nearest door is kept parked at any distance; `preloadRadius` only decides when another
+  door's room takes the slot. A tap starts loading at once. A failed room is retried on a fresh
+  approach of its door or a tap, and its marker shows it as unavailable meanwhile.
+- **Arrive the way you went in.** A walk-in keeps the view relative to the door: the angle
+  between the camera's view and the direction through the door (the door box's thinner
+  horizontal side, from the side the visitor stands on) is applied to the arrival's forward, and
+  the pitch is kept; the arrival position and look-at distance stay as configured. Walking
+  through backwards arrives looking back at the door. Taps use the configured pose.

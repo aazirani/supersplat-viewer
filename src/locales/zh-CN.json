@@ -75,6 +75,10 @@
     "xr-menu.exit-ar": "退出 AR",
     "xr-menu.ice-cream": "冰淇淋模式",
     "xr-hint.stalled": "没有反应？切换到其他标签页再切回来。",
+    "door.loading": "加载中…",
+    "door.loading-percent": "加载中 {percent}",
+    "door.cancel": "点按以取消",
+    "door.unavailable": "不可用。点按以重试",
 
     "annotation.more-info": "更多信息",
     "link-panel.open-in-new-tab": "在新标签页中打开",

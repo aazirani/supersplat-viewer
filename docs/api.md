@@ -229,9 +229,23 @@ supported yet; the class names inside the viewer are not API and do change.
 ## Rooms and doors
 
 An experience can span several separately scanned scenes ("rooms") connected by doorways. The
-first room is the page's own scene; the next room loads in the background as the visitor nears
-its door. Walking into the door (fly/walk mode) or tapping its marker fades to black, swaps the
-room, and fades back in at the arrival pose. Orbit mode and XR sessions never trigger a door by
+first room is the page's own scene. Once the current room has nothing left to stream for the
+view, the room behind the nearest door loads in the background, at its coarsest detail level (the
+level the page itself waits for before its first reveal); entering a door's `preloadRadius`
+switches that background slot to its room. Walking into a door (fly/walk mode) or tapping its
+marker fades to black, swaps the room, and fades back in at the arrival pose, with the finer
+levels streaming in as after the first reveal. A walk-in keeps the visitor's view relative to the
+door: the angle between their view and the direction through the door (along the door box's
+thinner horizontal side) is applied to the arrival's forward, and their pitch is kept, so walking
+through backwards arrives looking back at the door. A tap arrives at the configured pose, as does
+a walk-in through a box as deep as it is wide. A door entered before its room is ready never
+fades: the visitor waits in the current room, the marker fills a ring with the download's
+progress and names it under the room's name, and the door opens the moment the room is ready. A
+walk-in waits while the visitor stands in the doorway (stepping out, or leaving fly/walk mode,
+cancels it); a tapped door opens wherever the visitor is by then, and tapping it again cancels.
+Loading goes on in the background after a cancel. A room that fails to load, or stops loading
+for 30 s, shows its marker dimmed as unavailable with a `console.warn`; approaching its door
+afresh or tapping the marker tries again. Orbit mode and XR sessions never trigger a door by
 position; the marker can be tapped in any camera mode. A settings file without `rooms` behaves as
 before.
 
@@ -246,8 +260,8 @@ and settings from the page, so it needs no `contentUrl` or `settingsUrl`; if it 
 | `doors[].to` | Destination room id. |
 | `doors[].label` | Marker text, shown as written. |
 | `doors[].center`, `size` | Axis-aligned trigger box in **this** room's world coordinates (metres; `size` is the full width/height/depth). The marker sits at `center`. |
-| `doors[].preloadRadius` | Optional, default 8. Distance from `center` at which the destination starts loading. |
-| `doors[].arrival` | Camera `position` and look-at `target` in the **destination** room's coordinates. Must lie outside the destination's own door boxes. |
+| `doors[].preloadRadius` | Optional, default 8. Distance from `center` within which the destination takes the background slot over the nearest door's room. |
+| `doors[].arrival` | Camera `position` and look-at `target` in the **destination** room's coordinates: where a visitor walking straight through arrives, and what they face. Must lie outside the destination's own door boxes. |
 
 Coordinates are world coordinates as the viewer shows them. The viewer is lenient: invalid entries (unknown `to`,
 duplicate `id`, missing `contentUrl` on a non-first room, malformed vectors) are skipped with a

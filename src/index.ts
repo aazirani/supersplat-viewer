@@ -272,10 +272,43 @@ const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, 
             const manager = new RoomManager(rooms, firstRoomInstance(global, rooms[0].id, entity), host);
             state.room = rooms[0].id;
 
+            // Whether the current room has had its turn at the connection: the signal the manager
+            // waits for before it preloads the next room, so the room sharpens before the next
+            // one's download competes with it. True once a rendered frame has had nothing left
+            // to stream, or once the room has been streaming for a while (on a slow connection a
+            // room keeps streaming as the visitor looks around, and the next room's coarsest
+            // level is a bounded cost that a wait at the door would charge later anyway). The
+            // frame that reveals a room reports nothing in flight while its finer levels are not
+            // requested yet, so a quiet frame counts only after a frame has shown the room
+            // streaming, or after a moment for content that has nothing more to stream.
+            const QUIET_DELAY_MS = 1000;
+            const QUIET_CAP_MS = 15000;
+            let quiet = false;
+            let streamed = false;
+            let since = performance.now();
+            const onFrameReady = (camera: unknown, layer: unknown, ready: boolean, loading: number) => {
+                if (loading > 0) streamed = true;
+                quiet = ready && loading === 0 && (streamed || performance.now() - since >= QUIET_DELAY_MS);
+            };
+            app.systems.gsplat.on('frame:ready', onFrameReady);
+            const roomChanged = events.on('room:changed', () => {
+                quiet = false;
+                streamed = false;
+                since = performance.now();
+            });
+
             const update = () => {
                 // the camera exists once the first scene has finished loading
                 const camera = viewer.cameraManager?.camera;
-                if (camera) manager.update(camera.position, state.cameraMode, state.xrMode !== null);
+                if (!camera) return;
+                const settled = quiet || performance.now() - since >= QUIET_CAP_MS;
+                const { position, angles } = camera;
+                manager.update(
+                    { x: position.x, y: position.y, z: position.z, yaw: angles.y, pitch: angles.x },
+                    state.cameraMode,
+                    state.xrMode !== null,
+                    settled
+                );
             };
 
             // Preloading, and going through doors, wait for the first reveal: the start view can be
@@ -289,6 +322,8 @@ const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, 
 
             viewer.onDestroy(() => {
                 firstFrame.off();
+                roomChanged.off();
+                app.systems.gsplat.off('frame:ready', onFrameReady);
                 app.off('update', update);
                 global.rooms = null;
                 manager.destroy();

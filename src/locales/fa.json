@@ -75,6 +75,10 @@
     "xr-menu.exit-ar": "خروج از واقعیت افزوده",
     "xr-menu.ice-cream": "حالت بستنی",
     "xr-hint.stalled": "اتفاقی نمی‌افتد؟ به زبانه‌ی دیگری بروید و برگردید.",
+    "door.loading": "در حال بارگذاری…",
+    "door.loading-percent": "در حال بارگذاری {percent}",
+    "door.cancel": "برای لغو ضربه بزنید",
+    "door.unavailable": "در دسترس نیست. برای تلاش دوباره ضربه بزنید",
 
     "annotation.more-info": "اطلاعات بیشتر",
     "link-panel.open-in-new-tab": "باز کردن در زبانه‌ی جدید",

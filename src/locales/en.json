@@ -75,6 +75,10 @@
     "xr-menu.exit-ar": "Exit AR",
     "xr-menu.ice-cream": "Ice-cream mode",
     "xr-hint.stalled": "Nothing happening? Switch tabs and back.",
+    "door.loading": "Loading…",
+    "door.loading-percent": "Loading {percent}",
+    "door.cancel": "Tap to cancel",
+    "door.unavailable": "Unavailable. Tap to retry",
 
     "annotation.more-info": "More info",
     "link-panel.open-in-new-tab": "Open in new tab",

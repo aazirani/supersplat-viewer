@@ -547,10 +547,22 @@ const initUI = (
     let disposed = false;
     const showDoors = (doors: RoomDef['doors']) => {
         doorMarkers?.destroy();
-        doorMarkers = new DoorMarkers(global.app, global.camera, dom.sceneLayer, doors, (index) => {
-            // failures are reported by the manager itself
-            global.rooms?.enter(index).catch((): void => undefined);
-        });
+        doorMarkers = new DoorMarkers(
+            global.app,
+            global.camera,
+            dom.sceneLayer,
+            doors,
+            (index) => {
+                // failures are reported by the manager itself
+                global.rooms?.enter(index).catch((): void => undefined);
+                // the marker shows the tap's effect on the next frame, which a still camera
+                // would not draw
+                global.app.renderNextFrame = true;
+            },
+            (index) => global.rooms?.doorState(index) ?? { load: 'idle', progress: 0, pending: null },
+            localize,
+            root.lang
+        );
     };
     const firstFrame = events.once('firstFrame', () => {
         queueMicrotask(() => {

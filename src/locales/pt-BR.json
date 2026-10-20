@@ -75,6 +75,10 @@
     "xr-menu.exit-ar": "Sair da AR",
     "xr-menu.ice-cream": "Modo sorvete",
     "xr-hint.stalled": "Nada acontecendo? Troque de aba e volte.",
+    "door.loading": "Carregando…",
+    "door.loading-percent": "Carregando {percent}",
+    "door.cancel": "Toque para cancelar",
+    "door.unavailable": "Indisponível. Toque para tentar de novo",
 
     "annotation.more-info": "Mais informações",
     "link-panel.open-in-new-tab": "Abrir em nova aba",

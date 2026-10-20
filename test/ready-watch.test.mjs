@@ -51,6 +51,17 @@ describe('createReadyWatch', () => {
         assert.equal(watch(2, 1000), 'stalled');
     });
 
+    it('restarts the deadline on part of a file arriving, and is ready only once every file has', () => {
+        // progress is in files: a file half downloaded counts 0.5
+        const watch = createReadyWatch(2, 0, 1000);
+        assert.equal(watch(0, 0), 'waiting');
+        assert.equal(watch(0.5, 900), 'waiting');
+        assert.equal(watch(0.5, 1800), 'waiting');
+        assert.equal(watch(1.99, 1899), 'waiting');
+        assert.equal(watch(1.99, 2899), 'stalled');
+        assert.equal(watch(2, 2900), 'ready');
+    });
+
     it('defaults to a 30 second stall timeout', () => {
         assert.equal(READY_STALL_TIMEOUT_MS, 30000);
         const watch = createReadyWatch(1, 0);

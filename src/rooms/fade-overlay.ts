@@ -1,5 +1,4 @@
-// The black layer a room change fades through, with a spinner for a destination that is still
-// loading. Styled in index.scss (`.sse-roomFade`).
+// The black layer a room change fades through. Styled in index.scss (`.sse-roomFade`).
 
 // Matches the css transition in index.scss.
 const FADE_MS = 200;
@@ -9,13 +8,7 @@ const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: redu
 const createFadeOverlay = (root: HTMLElement) => {
     const element = document.createElement('div');
     element.className = 'sse-roomFade';
-    const spinner = document.createElement('div');
-    spinner.className = 'sse-roomFade-spinner';
-    element.appendChild(spinner);
     root.appendChild(element);
-
-    // spun here rather than by a css animation, whose @keyframes name would be global
-    let spin: Animation | null = null;
 
     // fades in flight, settled on destroy so nothing waits on a removed overlay
     const pending = new Map<ReturnType<typeof setTimeout>, () => void>();
@@ -39,23 +32,7 @@ const createFadeOverlay = (root: HTMLElement) => {
             });
         },
 
-        setWaiting(on: boolean) {
-            element.classList.toggle('sse-waiting', on);
-            if (on && !spin) {
-                spin =
-                    spinner.animate?.([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], {
-                        duration: 800,
-                        iterations: Infinity
-                    }) ?? null;
-            } else if (!on && spin) {
-                spin.cancel();
-                spin = null;
-            }
-        },
-
         destroy() {
-            spin?.cancel();
-            spin = null;
             for (const [timer, resolve] of pending) {
                 clearTimeout(timer);
                 resolve();

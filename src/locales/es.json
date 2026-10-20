@@ -75,6 +75,10 @@
     "xr-menu.exit-ar": "Salir de AR",
     "xr-menu.ice-cream": "Modo helado",
     "xr-hint.stalled": "¿No pasa nada? Cambia de pestaña y vuelve.",
+    "door.loading": "Cargando…",
+    "door.loading-percent": "Cargando {percent}",
+    "door.cancel": "Toca para cancelar",
+    "door.unavailable": "No disponible. Toca para reintentar",
 
     "annotation.more-info": "Más información",
     "link-panel.open-in-new-tab": "Abrir en una pestaña nueva",

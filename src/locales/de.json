@@ -75,6 +75,10 @@
     "xr-menu.exit-ar": "AR beenden",
     "xr-menu.ice-cream": "Eiscreme-Modus",
     "xr-hint.stalled": "Passiert nichts? Wechsle den Tab und wieder zurück.",
+    "door.loading": "Wird geladen…",
+    "door.loading-percent": "Wird geladen {percent}",
+    "door.cancel": "Zum Abbrechen tippen",
+    "door.unavailable": "Nicht verfügbar. Zum Wiederholen tippen",
 
     "annotation.more-info": "Mehr Infos",
     "link-panel.open-in-new-tab": "In neuem Tab öffnen",
