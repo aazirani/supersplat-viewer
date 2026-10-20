@@ -140,6 +140,16 @@ export class Annotation extends Script {
         };
         this.hotspotDom.addEventListener('click', onClick);
 
+        // reachable by keyboard, like the button it says it is; far ones leave the tab order
+        this.hotspotDom.tabIndex = 0;
+        this.hotspotDom.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.fire('select');
+            }
+        });
+
         ctx.hotspotsDom.appendChild(this.hotspotDom);
 
         const onPrerender = () => this._update();
@@ -311,6 +321,7 @@ export class Annotation extends Script {
             this.fade = fade;
             hotspot.style.setProperty('--sse-hotspot-fade', String(fade));
             hotspot.classList.toggle('sse-far', fade === 0);
+            hotspot.tabIndex = fade === 0 ? -1 : 0;
         }
 
         const ctx = this.context;

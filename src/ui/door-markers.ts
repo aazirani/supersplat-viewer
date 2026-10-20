@@ -71,6 +71,8 @@ class DoorMarkers {
         // ripples are played here rather than by a css animation, whose @keyframes name would be
         // global; checked once, as the hotspots do
         const animate = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        // the ring's fade goes with the ripple
+        this.layer.classList.toggle('sse-instant', !animate);
 
         let percent: Intl.NumberFormat;
         try {
@@ -131,6 +133,17 @@ class DoorMarkers {
                 onEnter(index);
             });
 
+            // reachable by keyboard, like the button it says it is: orbit mode has no other way
+            // through a door. A far marker leaves the tab order
+            element.tabIndex = 0;
+            element.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onEnter(index);
+                }
+            });
+
             this.layer.appendChild(element);
             return {
                 element,
@@ -189,6 +202,7 @@ class DoorMarkers {
                     marker.fade = fade;
                     element.style.setProperty('--sse-hotspot-fade', String(fade));
                     element.classList.toggle('sse-far', fade === 0);
+                    element.tabIndex = fade === 0 ? -1 : 0;
                 }
             });
         };
