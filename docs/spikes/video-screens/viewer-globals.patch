@@ -1,0 +1,17 @@
+diff --git a/src/viewer.ts b/src/viewer.ts
+index 74f61d4..e61e45a 100644
+--- a/src/viewer.ts
++++ b/src/viewer.ts
+@@ -1,3 +1,4 @@
++import * as __SPIKE_PC from 'playcanvas'; // SPIKE-TEMP
+ import {
+     BoundingBox,
+     CameraFrame,
+@@ -610,6 +611,7 @@ class Viewer {
+                 : new Picker(app, camera);
+             // for development pages (the bench measures pick noise), as splatRenderer:ready
+             events.fire('picker:ready', this.picker);
++            Object.assign(window as any, { __picker: this.picker, __pc: __SPIKE_PC }); // SPIKE-TEMP
+             this.inputController = new InputController(global, this.picker);
+ 
+             this.cameraManager = new CameraManager(global, sceneBound);
