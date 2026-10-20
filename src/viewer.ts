@@ -470,8 +470,9 @@ class Viewer {
             state.loaded = true;
 
             // a link to one exhibit flies there now the scene is in view; a link into another
-            // room (`room`) selects its exhibit on arrival instead (index.ts)
-            if (!config.room || config.room === state.room) {
+            // room (`room`) selects its exhibit on arrival instead (index.ts). Without rooms
+            // `room` means nothing, and the exhibit is this scene's
+            if (!config.room || state.room === null || config.room === state.room) {
                 const start = startAnnotationIndex(config.annotation, this.global.settings.annotations.length);
                 if (start !== null) this.selectAnnotation(start);
             }

@@ -13,7 +13,7 @@ import {
 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
-import { playState } from './screen-range';
+import { playState, retryPlayDue } from './screen-range';
 import { screenFrame } from './videos-settings';
 import type { VideoDef } from './videos-settings';
 
@@ -62,6 +62,9 @@ class VideoScreen {
     private inRange = false;
 
     private hidden = false;
+
+    // when a play() was last refused (no gesture yet), for a slow retry rather than one per frame
+    private refusedAt: number | null = null;
 
     private frameHandle: number | null = null;
 
@@ -159,13 +162,22 @@ class VideoScreen {
         if (this.failed || this.destroyed) return;
         const want = this.inRange && !this.hidden;
         if (want === this.playing) return;
-        this.playing = want;
         if (want) {
-            // a refused autoplay (not muted, no gesture yet) is retried by the next call
-            this.video.play().catch(() => {
-                this.playing = false;
-            });
+            // a refused autoplay (a browser that wants a gesture even for a muted video) is
+            // retried now and then, until one lets it through
+            if (!retryPlayDue(performance.now(), this.refusedAt)) return;
+            this.playing = true;
+            this.video.play().then(
+                () => {
+                    this.refusedAt = null;
+                },
+                () => {
+                    this.playing = false;
+                    this.refusedAt = performance.now();
+                }
+            );
         } else {
+            this.playing = false;
             this.video.pause();
         }
     }

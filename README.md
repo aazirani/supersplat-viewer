@@ -55,7 +55,7 @@ A link's `?lang=en` or `?lang=fa` still overrides it. Without it, the language f
 
 ### Annotation links
 
-Annotation text may hold links, opened in a panel beside the scene: a bare `https://…` url becomes a "More info" button, and `[label](url)` links a word in a sentence. Text in Persian, Arabic or Hebrew reads right to left, in the bundled [Vazirmatn](https://github.com/rastikerdar/vazirmatn) font (SIL Open Font License, `src/fonts/Vazirmatn-OFL.txt`).
+Annotation text may hold links, opened in a panel beside the scene: a bare `https://…` url becomes a "More info" button, and `[label](url)` links a word in a sentence. The page runs in a sandboxed frame; a page served from the viewer's own origin gets an opaque origin there, so its fonts and data files need `Access-Control-Allow-Origin: *` headers (see the [API reference](docs/api.md#controlling-annotations)). Text in Persian, Arabic or Hebrew reads right to left, in the bundled [Vazirmatn](https://github.com/rastikerdar/vazirmatn) font (SIL Open Font License, `src/fonts/Vazirmatn-OFL.txt`).
 
 ### Video screens
 

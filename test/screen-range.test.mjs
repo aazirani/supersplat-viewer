@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 // Imported from source rather than the build: Node strips the types itself.
-import { FADE_LENGTH, PAUSE_FACTOR, playState, soundLevel } from '../src/video/screen-range.ts';
+import {
+    FADE_LENGTH,
+    PAUSE_FACTOR,
+    PLAY_RETRY_MS,
+    playState,
+    retryPlayDue,
+    soundLevel
+} from '../src/video/screen-range.ts';
 
 const sound = { volume: 1, refDistance: 1, fadeDistance: 12 };
 
@@ -39,5 +46,15 @@ describe('playState', () => {
         assert.equal(playState(21, 20, true), true);
         assert.equal(playState(22.1, 20, true), false);
         assert.equal(playState(21, 20, false), false);
+    });
+});
+
+describe('retryPlayDue', () => {
+    it('allows the first attempt and waits two seconds after a refusal', () => {
+        assert.equal(PLAY_RETRY_MS, 2000);
+        assert.equal(retryPlayDue(1000, null), true);
+        assert.equal(retryPlayDue(1000, 500), false);
+        assert.equal(retryPlayDue(2499, 500), false);
+        assert.equal(retryPlayDue(2500, 500), true);
     });
 });

@@ -1,6 +1,8 @@
 import { Asset, Entity } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
+import { createLoadGate } from './load-gate';
+
 // Where a gsplat comes from: the first scene's config, or a room's content url.
 type GsplatSource = {
     contentUrl: string;
@@ -43,7 +45,24 @@ const loadGsplat = async (
     const asset = new Asset(filename, 'gsplat', { url: contentUrl, filename, contents: c }, data);
 
     return new Promise<{ entity: Entity; asset: Asset }>((resolve, reject) => {
+        // The engine does not abort a download, so a load that is no longer wanted (a replaced
+        // room preload) still fires progress and then load: whichever comes first after the
+        // cancellation frees the asset and rejects, and the rest is ignored, so no entity is
+        // ever added for a room nobody asked for
+        const gate = createLoadGate(cancelled);
+        const cancel = () => {
+            app.assets.remove(asset);
+            asset.unload();
+            reject(new Error(`loadGsplat: "${contentUrl}" was cancelled while loading`));
+        };
+
         asset.on('load', () => {
+            const outcome = gate.load();
+            if (outcome === 'ignore') return;
+            if (outcome === 'cancel') {
+                cancel();
+                return;
+            }
             // always name the app: the engine's default is the most recently created one,
             // which is another viewer's when two share a page
             const entity = new Entity('gsplat', app);
@@ -58,11 +77,10 @@ const loadGsplat = async (
 
         let watermark = 0;
         asset.on('progress', (received, length) => {
-            // no longer wanted (a replaced room preload): stop the download and free what came
-            if (cancelled()) {
-                app.assets.remove(asset);
-                asset.unload();
-                reject(new Error(`loadGsplat: "${contentUrl}" was cancelled while loading`));
+            const outcome = gate.progress();
+            if (outcome === 'ignore') return;
+            if (outcome === 'cancel') {
+                cancel();
                 return;
             }
             const progress = Math.min(1, received / length) * 100;
@@ -73,6 +91,7 @@ const loadGsplat = async (
         });
 
         asset.on('error', (err) => {
+            if (gate.error() === 'ignore') return;
             console.log(err);
             reject(err);
         });

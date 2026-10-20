@@ -175,6 +175,13 @@ else viewer.events.once('loaded:changed', selectFirst);
 
 Selection switches to orbit and transitions to the annotation's authored camera without changing the animation pause flag. Selecting the same index again navigates again. `selectAnnotation(null)` clears selection while leaving the camera and any transition alone. Commands return immediately and throw before readiness, after destruction, or for an index that is not an integer in range. Clearing an empty annotation list is valid.
 
+A link's page opens in a sandboxed frame that cannot navigate the viewer away. A page from the
+viewer's own origin runs with an opaque origin (no `allow-same-origin`: with scripts and its own
+origin it could undo the sandbox), so its web fonts and `fetch` calls go out as cross-origin
+requests. A page written beside `settings.json` therefore needs its fonts and data served with
+`Access-Control-Allow-Origin: *`, or it shows fallback fonts; pages on other hosts are framed as
+usual, and hosts that refuse framing can still be opened from the panel's new-tab button.
+
 With `ui: false`, the same data, selection and camera navigation are available; the host supplies presentation. `state.showAnnotations` controls built-in visibility and does not clear selection, so showing annotations again restores the selected panel. The built-in navigator retains its last title and navigation position after dismissal, greyed out while nothing is selected; clicking it selects that annotation again. Clicking elsewhere inside this viewer clears selection; clicking host controls or another viewer does not.
 
 ### Fullscreen and XR
@@ -233,7 +240,7 @@ first room is the page's own scene. Once the current room has nothing left to st
 view, or after 15 s in it on a connection that never catches up, the room behind the nearest door
 loads in the background, at its coarsest detail level (the level the page itself waits for before
 its first reveal); entering a door's `preloadRadius` switches that background slot to its room, and
-a load that was still in flight is cancelled. Walking into a door (fly/walk mode) or tapping its
+a load that was still in flight is dropped (its bytes may keep arriving, but nothing is kept). Walking into a door (fly/walk mode) or tapping its
 marker fades to black, swaps the room, and fades back in at the arrival pose, with the finer
 levels streaming in as after the first reveal. A walk-in keeps the visitor's view relative to the
 door: the angle between their view and the direction through the door (along the door box's

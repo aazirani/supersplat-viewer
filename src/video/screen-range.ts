@@ -10,6 +10,10 @@ const FADE_LENGTH = 3;
 // the edge does not flicker it
 const PAUSE_FACTOR = 1.1;
 
+// how long after a refused play() (no gesture yet, on a browser that refuses even muted
+// autoplay) before the next try, rather than one every frame
+const PLAY_RETRY_MS = 2000;
+
 /**
  * The gain for a screen's sound at `distance` metres: the volume up to the reference distance,
  * falling off as one over distance, and fading linearly to nothing over the last metres before
@@ -29,4 +33,8 @@ const soundLevel = (distance: number, sound: SoundDef): number => {
 const playState = (distance: number, playDistance: number, playing: boolean): boolean =>
     distance <= (playing ? playDistance * PAUSE_FACTOR : playDistance);
 
-export { FADE_LENGTH, PAUSE_FACTOR, playState, soundLevel };
+/** Whether a play() may be tried at `now`, given when the last one was refused (null: never). */
+const retryPlayDue = (now: number, refusedAt: number | null): boolean =>
+    refusedAt === null || now - refusedAt >= PLAY_RETRY_MS;
+
+export { FADE_LENGTH, PAUSE_FACTOR, PLAY_RETRY_MS, playState, retryPlayDue, soundLevel };
