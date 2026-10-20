@@ -30,11 +30,10 @@ const DEFAULT_PLAY_DISTANCE = 20;
 // a screen narrower or shorter than this is not a screen
 const MIN_EXTENT = 0.001;
 
-const isObject = (v: unknown): v is Record<string, unknown> =>
-    typeof v === 'object' && v !== null && !Array.isArray(v);
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const isVec3 = (v: unknown): v is Vec3T =>
-    Array.isArray(v) && v.length === 3 && v.every(n => typeof n === 'number' && Number.isFinite(n));
+    Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n));
 
 const isFinite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -73,7 +72,7 @@ const parseVideo = (raw: unknown): VideoDef | string => {
 
     return {
         src: raw.src,
-        corners: corners.map(c => [...c] as Vec3T) as VideoDef['corners'],
+        corners: corners.map((c) => [...c] as Vec3T) as VideoDef['corners'],
         offset,
         loop,
         playDistance,
@@ -121,7 +120,7 @@ const screenFrame = (corners: VideoDef['corners']): ScreenFrame | null => {
     const len = length(n);
     if (len < MIN_EXTENT * MIN_EXTENT) return null;
     const normal: Vec3T = [n[0] / len, n[1] / len, n[2] / len];
-    const center: Vec3T = [0, 1, 2].map(i => (tl[i] + tr[i] + br[i] + bl[i]) / 4) as Vec3T;
+    const center: Vec3T = [0, 1, 2].map((i) => (tl[i] + tr[i] + br[i] + bl[i]) / 4) as Vec3T;
     return { center, normal, width, height };
 };
 

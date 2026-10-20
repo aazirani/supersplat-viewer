@@ -169,7 +169,10 @@ class DoorMarkers {
 
             let text = '';
             if (loading) {
-                text = pct > 0 ? localize('door.loading-percent').replace('{percent}', percent.format(pct / 100)) : localize('door.loading');
+                text =
+                    pct > 0
+                        ? localize('door.loading-percent').replace('{percent}', percent.format(pct / 100))
+                        : localize('door.loading');
                 if (state.pending === 'tap') text += ` · ${localize('door.cancel')}`;
             } else if (state.load === 'failed') {
                 text = localize('door.unavailable');

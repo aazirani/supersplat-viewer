@@ -189,7 +189,9 @@ class SpatialAudio {
             if (this.unlocked) this.ctx.resume().catch((): void => undefined);
         } catch (err) {
             this.ctxFailed = true;
-            this.warn(`sound: no audio context (${err instanceof Error ? err.message : String(err)}); the videos play silent`);
+            this.warn(
+                `sound: no audio context (${err instanceof Error ? err.message : String(err)}); the videos play silent`
+            );
         }
         return this.ctx;
     }

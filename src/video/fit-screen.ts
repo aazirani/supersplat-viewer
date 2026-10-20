@@ -48,7 +48,7 @@ const fitScreenCorners = (points: readonly Vec3T[]): Rect | null => {
     const height = (dot(sub(bl, tl), v) + dot(sub(br, tr), v)) / 2;
     if (width < MIN_EXTENT || height < MIN_EXTENT) return null;
 
-    const center: Vec3T = [0, 1, 2].map(i => (tl[i] + tr[i] + br[i] + bl[i]) / 4) as Vec3T;
+    const center: Vec3T = [0, 1, 2].map((i) => (tl[i] + tr[i] + br[i] + bl[i]) / 4) as Vec3T;
     const halfU = scale(u, width / 2);
     const halfV = scale(v, height / 2);
     const corners: Rect['corners'] = [

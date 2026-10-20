@@ -15,11 +15,10 @@ type RoomDef = { id: string; contentUrl?: string; settingsUrl?: string; doors: D
 
 const DEFAULT_PRELOAD_RADIUS = 8;
 
-const isObject = (v: unknown): v is Record<string, unknown> =>
-    typeof v === 'object' && v !== null && !Array.isArray(v);
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const isVec3 = (v: unknown): v is Vec3T =>
-    Array.isArray(v) && v.length === 3 && v.every(n => typeof n === 'number' && Number.isFinite(n));
+    Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n));
 
 const isNonEmptyString = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 
@@ -29,7 +28,7 @@ const parseDoor = (raw: unknown): DoorDef | string => {
     if (!isNonEmptyString(raw.to)) return 'needs a "to" room id';
     if (!isNonEmptyString(raw.label)) return 'needs a non-empty "label"';
     if (!isVec3(raw.center)) return '"center" must be three finite numbers';
-    if (!isVec3(raw.size) || raw.size.some(n => n <= 0)) return '"size" must be three positive numbers';
+    if (!isVec3(raw.size) || raw.size.some((n) => n <= 0)) return '"size" must be three positive numbers';
 
     const arrival = raw.arrival;
     if (!isObject(arrival) || !isVec3(arrival.position) || !isVec3(arrival.target)) {

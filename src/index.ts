@@ -316,7 +316,11 @@ const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, 
 
                 // a link into another room: through the first room's door to it, as a tap would
                 // go, then to its exhibit if the link names one
-                const start = startRoomDoor(global.config.room, rooms[0], rooms.map((room) => room.id));
+                const start = startRoomDoor(
+                    global.config.room,
+                    rooms[0],
+                    rooms.map((room) => room.id)
+                );
                 if (start !== null && 'warning' in start) {
                     console.warn('[rooms]', start.warning);
                 } else if (start !== null && 'door' in start) {
@@ -325,7 +329,10 @@ const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, 
                     const arrived = events.on('room:changed', (room: string | null) => {
                         if (room !== target) return;
                         arrived.off();
-                        const index = startAnnotationIndex(global.config.annotation, global.settings.annotations.length);
+                        const index = startAnnotationIndex(
+                            global.config.annotation,
+                            global.settings.annotations.length
+                        );
                         if (index !== null) viewer.selectAnnotation(index);
                     });
                     viewer.onDestroy(() => arrived.off());

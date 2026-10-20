@@ -135,7 +135,15 @@ describe('textDirection', () => {
 describe('isSafeUrl', () => {
     // a scheme-relative url is as good as an absolute https one
     const safe = ['https://a/b', 'http://a/b', '/page', './page', 'page.html?x=1#y', '//other.example/'];
-    const unsafe = ['javascript:alert(1)', 'java\tscript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,x', 'vbscript:x', 'blob:https://a/b', 'file:///etc/passwd'];
+    const unsafe = [
+        'javascript:alert(1)',
+        'java\tscript:alert(1)',
+        'JAVASCRIPT:alert(1)',
+        'data:text/html,x',
+        'vbscript:x',
+        'blob:https://a/b',
+        'file:///etc/passwd'
+    ];
     for (const url of safe) {
         it(`accepts ${JSON.stringify(url)}`, () => assert.equal(isSafeUrl(url), true));
     }

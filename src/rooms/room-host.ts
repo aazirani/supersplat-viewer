@@ -141,7 +141,11 @@ const createRoomHost = (
             const cancelled = () => viewer.destroyed || signal.aborted;
             const settings = await loadSettings(room);
             if (cancelled()) {
-                throw new Error(viewer.destroyed ? 'the viewer was destroyed while loading' : `room "${room.id}" is no longer needed`);
+                throw new Error(
+                    viewer.destroyed
+                        ? 'the viewer was destroyed while loading'
+                        : `room "${room.id}" is no longer needed`
+                );
             }
 
             const { entity, asset } = await loadGsplat(

@@ -47,7 +47,10 @@ describe('readRooms', () => {
 
     it('parses the spec example', () => {
         const { rooms, warnings } = readRooms(valid());
-        assert.deepEqual(rooms.map(r => r.id), ['hall', 'tunnel']);
+        assert.deepEqual(
+            rooms.map((r) => r.id),
+            ['hall', 'tunnel']
+        );
         assert.equal(rooms[0].contentUrl, undefined);
         assert.equal(rooms[1].contentUrl, './tunnel/lod-meta.json');
         assert.equal(rooms[0].doors[0].preloadRadius, 8);
@@ -74,7 +77,7 @@ describe('readRooms', () => {
         delete raw[1].contentUrl;
         const { rooms, warnings } = readRooms(raw);
         assert.equal(rooms.length, 1);
-        assert.ok(warnings.some(w => w.includes('tunnel')));
+        assert.ok(warnings.some((w) => w.includes('tunnel')));
     });
 
     it('skips a duplicate id', () => {

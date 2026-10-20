@@ -65,7 +65,7 @@ describe('evaluateDoors', () => {
         assert.deepEqual(d.preload, ['b']);
     });
 
-    it('names the nearest door\'s room, even beyond every radius', () => {
+    it("names the nearest door's room, even beyond every radius", () => {
         const far = { ...door('c'), center: [30, 0, 0] };
         const d = evaluateDoors([door('b'), far], at(100), 'orbit', false, [false, false]);
         assert.deepEqual(d.preload, []);
@@ -123,7 +123,10 @@ describe('arrivalThrough', () => {
 
     it('keeps the configured arrival without a heading, on the centre plane, or for a square door', () => {
         assert.deepEqual(arrivalThrough(hallDoor, { x: 5.0, y: 0.3, z: -5.7 }, hallDoor.arrival), hallDoor.arrival);
-        assert.deepEqual(arrivalThrough(hallDoor, { x: 5.0, y: 0.3, z: -5.8, yaw: 180, pitch: 0 }, hallDoor.arrival), hallDoor.arrival);
+        assert.deepEqual(
+            arrivalThrough(hallDoor, { x: 5.0, y: 0.3, z: -5.8, yaw: 180, pitch: 0 }, hallDoor.arrival),
+            hallDoor.arrival
+        );
         const square = { ...hallDoor, size: [1.0, 2.6, 1.0] };
         assert.deepEqual(arrivalThrough(square, inDoor(180), hallDoor.arrival), hallDoor.arrival);
     });

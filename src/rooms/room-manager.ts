@@ -165,7 +165,8 @@ class RoomManager<R> {
         if (!this.settled || this.pending) return;
         const parked = this.parked;
         if (parked && (decision.preload.length === 0 || decision.preload.includes(parked.id))) return;
-        const id = decision.preload.find((candidate) => !this.failed.has(candidate)) ??
+        const id =
+            decision.preload.find((candidate) => !this.failed.has(candidate)) ??
             (decision.nearest !== null && !this.failed.has(decision.nearest) ? decision.nearest : undefined);
         if (id !== undefined && id !== parked?.id) this.park(id);
     }
@@ -296,20 +297,17 @@ class RoomManager<R> {
             this.host.warn(`rooms: could not preload room "${id}": ${describeError(err)}`);
         };
 
-        parked.promise.then(
-            (instance) => {
-                if (this.parked !== parked) {
-                    // replaced or destroyed while loading
-                    this.host.release(instance);
-                    return;
-                }
-                parked.instance = instance;
-                this.host.whenReady(instance).then(() => {
-                    if (this.parked === parked) parked.ready = true;
-                }, fail);
-            },
-            fail
-        );
+        parked.promise.then((instance) => {
+            if (this.parked !== parked) {
+                // replaced or destroyed while loading
+                this.host.release(instance);
+                return;
+            }
+            parked.instance = instance;
+            this.host.whenReady(instance).then(() => {
+                if (this.parked === parked) parked.ready = true;
+            }, fail);
+        }, fail);
 
         return parked;
     }

@@ -253,7 +253,12 @@ describe('RoomManager', () => {
             await flush();
             lastReady(host, 'tunnel').reject(new Error('stalled'));
             await flush();
-            assert.deepEqual(host.calls, ['load:tunnel', 'ready:tunnel', 'release:tunnel', 'warn:rooms: could not preload room "tunnel": stalled']);
+            assert.deepEqual(host.calls, [
+                'load:tunnel',
+                'ready:tunnel',
+                'release:tunnel',
+                'warn:rooms: could not preload room "tunnel": stalled'
+            ]);
             assert.equal(manager.doorState(0).load, 'failed');
         });
 

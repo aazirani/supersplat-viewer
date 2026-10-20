@@ -92,7 +92,18 @@ describe('defaults', () => {
 
 describe('validateSettings', () => {
     const roomsFixture = (to) => [
-        { id: 'hall', doors: [{ to, label: 'Tunnel', center: [0, 0, 0], size: [1, 2, 1], arrival: { position: [0, 1, 0], target: [0, 1, 1] } }] },
+        {
+            id: 'hall',
+            doors: [
+                {
+                    to,
+                    label: 'Tunnel',
+                    center: [0, 0, 0],
+                    size: [1, 2, 1],
+                    arrival: { position: [0, 1, 0], target: [0, 1, 1] }
+                }
+            ]
+        },
         { id: 'tunnel', contentUrl: './tunnel/lod-meta.json', doors: [] }
     ];
 
@@ -106,10 +117,13 @@ describe('validateSettings', () => {
         assert.throws(() => validateSettings(settings), /unknown room/);
     });
 
-    const videoFixture = (corners) => [
-        { src: './sample.mp4', corners }
+    const videoFixture = (corners) => [{ src: './sample.mp4', corners }];
+    const fourCorners = [
+        [0, 1, 0],
+        [1, 1, 0],
+        [1, 0, 0],
+        [0, 0, 0]
     ];
-    const fourCorners = [[0, 1, 0], [1, 1, 0], [1, 0, 0], [0, 0, 0]];
 
     it('validateSettings accepts settings with a valid video', () => {
         const settings = { ...defaultSettings(), videos: videoFixture(fourCorners) };
