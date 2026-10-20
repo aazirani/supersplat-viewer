@@ -4,6 +4,8 @@ import type { CameraManager } from '../camera-manager';
 import type { ScenePicker } from '../picker';
 import type { StochasticSplatRenderer } from '../render/stochastic-splat-renderer';
 import type { Global } from '../types';
+import { fitScreenCorners } from '../video/fit-screen';
+import type { Vec3T } from '../video/videos-settings';
 
 import { captureCameraState, restoreCameraState } from './camera-state';
 import type { CameraStateSnapshot } from './camera-state';
@@ -159,6 +161,13 @@ class DebugPanel {
 
     private _culledValue: HTMLSpanElement | null = null;
 
+    private _pickScreenButton: HTMLButtonElement | null = null;
+
+    // the screen picker's corners so far, while it is armed
+    private _screenPicks: Vec3T[] | null = null;
+
+    private _disarmScreenPick: (() => void) | null = null;
+
     private _cullStatsFrames = 0;
 
     private _cullStatsPending = false;
@@ -269,6 +278,7 @@ class DebugPanel {
 
     destroy() {
         this.hide();
+        this._cancelScreenPick();
         this._pickDepthOverlay?.destroy();
         this._pickDepthOverlay = null;
         window.removeEventListener('keydown', this._onKeyDown);
@@ -303,6 +313,7 @@ class DebugPanel {
             </div>
             <div class="sse-debug-buttons">
                 <button data-id="screenshot">Screenshot</button>
+                <button data-id="pick-screen" title="Click a screen's corners in the scene: top-left, top-right, bottom-right, bottom-left. Writes a videos entry for settings.json to the console and the clipboard">Pick screen</button>
                 <button data-id="pick-depth" title="Show the depth a navigation pick finds at every pixel">Show depth</button>
                 <button data-id="ministats" title="Show the engine's MiniStats graphs (the viewer then renders every frame)">MiniStats</button>
             </div>
@@ -328,6 +339,7 @@ class DebugPanel {
         this._copyButton = root.querySelector('[data-id="copy"]')!;
         this._pasteButton = root.querySelector('[data-id="paste"]')!;
         this._screenshotButton = root.querySelector('[data-id="screenshot"]')!;
+        this._pickScreenButton = root.querySelector('[data-id="pick-screen"]')!;
         this._pickDepthButton = root.querySelector('[data-id="pick-depth"]')!;
         this._miniStatsButton = root.querySelector('[data-id="ministats"]')!;
         this._pasteField = root.querySelector('[data-id="paste-field"]')!;
@@ -345,6 +357,7 @@ class DebugPanel {
         this._copyButton.addEventListener('click', () => this._copy());
         this._pasteButton.addEventListener('click', () => this._paste());
         this._screenshotButton.addEventListener('click', () => this._screenshot());
+        this._pickScreenButton.addEventListener('click', () => this._toggleScreenPick());
         this._pickDepthButton.addEventListener('click', () => {
             this._setPickDepth(!this._pickDepthOverlay?.enabled);
         });
@@ -659,6 +672,105 @@ class DebugPanel {
                 1.0
             );
         });
+    }
+
+    // The screen picker: four clicks on the canvas, one per corner of a screen in the scene
+    // (top-left, top-right, bottom-right, bottom-left), each picked as a surface point; the
+    // rectangle fitted through them is written as a `videos` entry for settings.json. The clicks
+    // are kept from the viewer so they do not also navigate.
+    private _toggleScreenPick() {
+        if (this._screenPicks) {
+            this._cancelScreenPick();
+            return;
+        }
+        const canvas = this._global.app.graphicsDevice.canvas as HTMLCanvasElement;
+        this._screenPicks = [];
+        this._showScreenPicks();
+
+        let down: { x: number; y: number } | null = null;
+        const onDown = (event: PointerEvent) => {
+            event.stopImmediatePropagation();
+            down = { x: event.clientX, y: event.clientY };
+        };
+        const onUp = (event: PointerEvent) => {
+            event.stopImmediatePropagation();
+            if (!down) return;
+            const moved = Math.hypot(event.clientX - down.x, event.clientY - down.y);
+            down = null;
+            // a drag is a look-around, not a pick
+            if (moved > 4) return;
+            const rect = canvas.getBoundingClientRect();
+            this._pickScreenCorner((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
+        };
+        const onClick = (event: MouseEvent) => event.stopImmediatePropagation();
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.stopImmediatePropagation();
+                this._cancelScreenPick();
+            }
+        };
+        const options = { capture: true };
+        canvas.addEventListener('pointerdown', onDown, options);
+        canvas.addEventListener('pointerup', onUp, options);
+        canvas.addEventListener('click', onClick, options);
+        window.addEventListener('keydown', onKey, options);
+        this._disarmScreenPick = () => {
+            canvas.removeEventListener('pointerdown', onDown, options);
+            canvas.removeEventListener('pointerup', onUp, options);
+            canvas.removeEventListener('click', onClick, options);
+            window.removeEventListener('keydown', onKey, options);
+        };
+    }
+
+    private async _pickScreenCorner(x: number, y: number) {
+        const picks = this._screenPicks;
+        if (!picks) return;
+        const hit = await this._picker.pickSurface(x, y);
+        if (this._screenPicks !== picks) return;
+        if (!hit) {
+            this._flashBad(this._pickScreenButton!);
+            return;
+        }
+        picks.push([hit.position.x, hit.position.y, hit.position.z]);
+        this._showScreenPicks();
+        if (picks.length < 4) return;
+
+        const rect = fitScreenCorners(picks);
+        this._cancelScreenPick();
+        if (!rect) {
+            this._flashBad(this._pickScreenButton!);
+            console.warn('[video] the four picks do not make a rectangle');
+            return;
+        }
+        const round = (v: number) => Math.round(v * 1000) / 1000;
+        const entry = {
+            src: './video.mp4',
+            corners: rect.corners.map((c) => c.map(round)),
+            offset: 0.01
+        };
+        const text = JSON.stringify(entry, null, 4);
+        console.log(
+            `[video] screen ${round(rect.width)} × ${round(rect.height)} m; add to settings.json under "videos":\n${text}`
+        );
+        navigator.clipboard?.writeText(text).then(
+            () => this._flashOk(this._pickScreenButton!),
+            () => this._flash(this._pickScreenButton)
+        );
+    }
+
+    private _showScreenPicks() {
+        const button = this._pickScreenButton;
+        if (!button) return;
+        const picks = this._screenPicks;
+        button.classList.toggle('sse-debug-on', picks !== null);
+        button.textContent = picks ? `Pick screen (${picks.length}/4)` : 'Pick screen';
+    }
+
+    private _cancelScreenPick() {
+        this._disarmScreenPick?.();
+        this._disarmScreenPick = null;
+        this._screenPicks = null;
+        this._showScreenPicks();
     }
 
     private _flash(el: HTMLElement | null) {

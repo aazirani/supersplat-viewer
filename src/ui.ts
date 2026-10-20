@@ -5,6 +5,7 @@ import { version as appVersion } from '../package.json';
 
 import type { Picker } from './picker';
 import type { RoomDef } from './rooms/rooms-settings';
+import type { ExperienceSettings } from './settings';
 import { Tooltip } from './tooltip';
 import type { Global, ViewerHandle } from './types';
 import { initAnnotationControls } from './ui/annotation-controls';
@@ -20,6 +21,7 @@ import { initPlayback } from './ui/playback';
 import { initVrPrompt } from './ui/vr-prompt';
 import { initXrControls } from './ui/xr-controls';
 import { initXrHint } from './ui/xr-hint';
+import { readVideos } from './video/videos-settings';
 import { visionPro } from './xr';
 
 // show the poster image over the hidden canvas, blurry at first and sharpening as loading
@@ -122,6 +124,8 @@ const initUI = (
         'loadingBar',
         'showCollisionRow',
         'showCollisionCheck',
+        'soundRow',
+        'soundCheck',
         'showCollisionShortcut',
         'walkShortcut',
         'playShortcut',
@@ -497,6 +501,22 @@ const initUI = (
     on('collisionOverlayEnabled:changed', (value: boolean) => {
         dom.showCollisionCheck.classList.toggle('sse-active', value);
     });
+
+    // Sound: a settings row shown while the room has any to offer (video screens with sound, or
+    // an ambient track); its switch is on while the scene is not muted
+    const hasSound = (settings: ExperienceSettings) =>
+        settings.soundUrl !== undefined || readVideos(settings.videos).videos.some((video) => video.sound !== null);
+    const showSoundRow = () => dom.soundRow.classList.toggle('sse-hidden', !hasSound(global.settings));
+    showSoundRow();
+    on('room:changed', showSoundRow);
+
+    dom.soundRow.addEventListener('click', () => {
+        state.muted = !state.muted;
+    });
+
+    const showMuted = (muted: boolean) => dom.soundCheck.classList.toggle('sse-active', !muted);
+    showMuted(state.muted);
+    on('muted:changed', showMuted);
 
     dom.settings.addEventListener('click', () => {
         showSettings(!isVisible(dom.settingsPanel));
