@@ -21,8 +21,8 @@ type XrMode = 'ar' | 'vr';
 // the createViewer options with every default applied: what the viewer reads at runtime, and
 // immutable once it starts. The flags are documented on ViewerFlags
 type Config = ViewerAssets &
-    Required<Omit<ViewerFlags, 'hpr' | 'budget' | 'lang' | 'defaultLang' | 'annotation'>> &
-    Pick<ViewerFlags, 'hpr' | 'budget' | 'lang' | 'defaultLang' | 'annotation'> & {
+    Required<Omit<ViewerFlags, 'hpr' | 'budget' | 'lang' | 'defaultLang' | 'annotation' | 'room'>> &
+    Pick<ViewerFlags, 'hpr' | 'budget' | 'lang' | 'defaultLang' | 'annotation' | 'room'> & {
         poster?: HTMLImageElement;
         contents: Promise<Response>;
     };

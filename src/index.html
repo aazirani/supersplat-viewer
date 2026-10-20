@@ -112,6 +112,8 @@
                 defaultLang: bootstrap.lang,
                 // a link to one exhibit, such as a qr code beside it: its hotspot's number
                 annotation: url.searchParams.has('annotation') ? Number(url.searchParams.get('annotation')) : undefined,
+                // a link into another room, such as a qr code beside an exhibit there
+                room: url.searchParams.get('room') ?? undefined,
                 // the standalone document is the one place the window.* hooks belong
                 exposeGlobals: true
             };

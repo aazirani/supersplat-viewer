@@ -469,9 +469,12 @@ class Viewer {
             state.animationPaused = config.noanim || config.vr;
             state.loaded = true;
 
-            // a link to one exhibit flies there now the scene is in view
-            const start = startAnnotationIndex(config.annotation, this.global.settings.annotations.length);
-            if (start !== null) this.selectAnnotation(start);
+            // a link to one exhibit flies there now the scene is in view; a link into another
+            // room (`room`) selects its exhibit on arrival instead (index.ts)
+            if (!config.room || config.room === state.room) {
+                const start = startAnnotationIndex(config.annotation, this.global.settings.annotations.length);
+                if (start !== null) this.selectAnnotation(start);
+            }
 
             // the window.* hooks below are the standalone document's api for the thumbnail
             // pipeline and console debugging; an embedded instance keeps them off, since two

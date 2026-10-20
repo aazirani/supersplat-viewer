@@ -31,6 +31,8 @@ import type { Config, Global, State, ViewerHandle } from './types';
 import { initPoster, initUI } from './ui';
 import uiHtml from './ui.html';
 import { initVideoScreens } from './video/video-screens';
+import { startAnnotationIndex } from './start-annotation';
+import { startRoomDoor } from './start-room';
 import { Viewer } from './viewer';
 import { version as appVersion } from '../package.json';
 
@@ -251,6 +253,7 @@ const resolveConfig = (options: CreateViewerOptions): Config => ({
     lang: options.lang,
     defaultLang: options.defaultLang,
     annotation: options.annotation,
+    room: options.room,
     exposeGlobals: options.exposeGlobals ?? false
 });
 
@@ -324,6 +327,24 @@ const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, 
                 manager.start();
                 global.rooms = manager;
                 app.on('update', update);
+
+                // a link into another room: through the first room's door to it, as a tap would
+                // go, then to its exhibit if the link names one
+                const start = startRoomDoor(global.config.room, rooms[0], rooms.map((room) => room.id));
+                if (start !== null && 'warning' in start) {
+                    console.warn('[rooms]', start.warning);
+                } else if (start !== null && 'door' in start) {
+                    const { door } = start;
+                    const target = rooms[0].doors[door].to;
+                    const arrived = events.on('room:changed', (room: string | null) => {
+                        if (room !== target) return;
+                        arrived.off();
+                        const index = startAnnotationIndex(global.config.annotation, global.settings.annotations.length);
+                        if (index !== null) viewer.selectAnnotation(index);
+                    });
+                    viewer.onDestroy(() => arrived.off());
+                    manager.enter(door).catch((): void => undefined);
+                }
             });
 
             viewer.onDestroy(() => {
