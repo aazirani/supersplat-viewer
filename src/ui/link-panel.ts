@@ -9,6 +9,17 @@ const CLOSE_MS = 300;
 // narrower than this, the viewer shows the panel as a sheet from the bottom
 const NARROW_WIDTH = 600;
 
+// The frame's sandbox for a page: scripts, forms and popups, but no navigation of the viewer;
+// a same-origin page does not get its origin back
+const sandboxFor = (url: string) => {
+    const base = 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';
+    try {
+        return new URL(url, location.href).origin === location.origin ? base : `${base} allow-same-origin`;
+    } catch {
+        return base;
+    }
+};
+
 /** Opens a link's page in the panel, titled `title`. */
 type OpenLink = (url: string, title: string) => void;
 
@@ -19,6 +30,8 @@ type LinkPanel = {
     isOpen: () => boolean;
     /** How much of the viewer's width, from its right edge, the open panel covers; 0 when closed. */
     coveredRight: () => number;
+    /** How much of the viewer's height, from its bottom edge, the open sheet covers; 0 when closed or beside the scene. */
+    coveredBottom: () => number;
 };
 
 /**
@@ -79,9 +92,16 @@ const initLinkPanel = (viewer: Pick<ViewerHandle, 'app'>, root: HTMLElement, loc
 
     // the open panel's left edge as it ends up, its slide aside (offsetLeft ignores transforms).
     // A sheet from the bottom covers no width: the tooltip stays above it
+    const isNarrow = () => panel.classList.contains('sse-narrow');
     const coveredRight = () => {
-        if (!isOpen() || panel.classList.contains('sse-narrow')) return 0;
+        if (!isOpen() || isNarrow()) return 0;
         return Math.max(0, root.clientWidth - panel.offsetLeft);
+    };
+
+    // the open sheet's height, so the tooltip and the step buttons stay above it
+    const coveredBottom = () => {
+        if (!isOpen() || !isNarrow()) return 0;
+        return Math.max(0, root.clientHeight - panel.offsetTop);
     };
 
     // the tooltip moves aside for the panel, or back, in the next frame, which a still camera
@@ -91,6 +111,7 @@ const initLinkPanel = (viewer: Pick<ViewerHandle, 'app'>, root: HTMLElement, loc
     const redraw = () => {
         viewer.app.renderNextFrame = true;
         root.style.setProperty('--sse-link-panel-cover', `${coveredRight()}px`);
+        root.style.setProperty('--sse-link-panel-cover-bottom', `${coveredBottom()}px`);
     };
 
     const unload = () => {
@@ -117,15 +138,14 @@ const initLinkPanel = (viewer: Pick<ViewerHandle, 'app'>, root: HTMLElement, loc
         openInTab.href = url;
 
         // A fresh frame per page, so its history never reaches the viewer's. Sandboxed without
-        // top navigation, so the page cannot navigate the viewer away; its links open in tabs
+        // top navigation, so the page cannot navigate the viewer away; its links open in tabs.
+        // A page from the viewer's own origin runs with an opaque origin instead: with its own
+        // origin and scripts it could undo the sandbox from inside
         frame = document.createElement('iframe');
         frame.className = 'sse-linkPanelFrame';
         frame.title = text;
         frame.referrerPolicy = 'strict-origin-when-cross-origin';
-        frame.setAttribute(
-            'sandbox',
-            'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox'
-        );
+        frame.setAttribute('sandbox', sandboxFor(url));
         frame.setAttribute('allow', 'fullscreen');
         panel.classList.add('sse-loading');
         frame.addEventListener('load', () => panel.classList.remove('sse-loading'));
@@ -153,12 +173,15 @@ const initLinkPanel = (viewer: Pick<ViewerHandle, 'app'>, root: HTMLElement, loc
     close.addEventListener('click', hide);
 
     // Escape closes the panel before the viewer's own Escape (leaving a mode, say) sees it.
-    // Only while focus is in the viewer: a page in the frame keeps its own keys
+    // Only for a key pressed in this viewer, or with nothing focused (the viewer's own keys come
+    // that way too): a host page's own Escape, with focus in its controls, is left alone, and a
+    // page in the frame keeps its keys since they never reach this document
     const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key === 'Escape' && isOpen()) {
-            event.stopImmediatePropagation();
-            hide();
-        }
+        if (event.key !== 'Escape' || !isOpen()) return;
+        const target = event.target as Node | null;
+        if (target && target !== document.body && target !== document && !root.contains(target)) return;
+        event.stopImmediatePropagation();
+        hide();
     };
     window.addEventListener('keydown', onKeyDown, { capture: true });
 
@@ -169,7 +192,7 @@ const initLinkPanel = (viewer: Pick<ViewerHandle, 'app'>, root: HTMLElement, loc
         unload();
     };
 
-    const linkPanel: LinkPanel = { open, close: hide, isOpen, coveredRight };
+    const linkPanel: LinkPanel = { open, close: hide, isOpen, coveredRight, coveredBottom };
     return { linkPanel, dispose };
 };
 

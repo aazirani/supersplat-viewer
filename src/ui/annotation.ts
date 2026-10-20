@@ -334,9 +334,10 @@ export class Annotation extends Script {
         // out, moving with the hotspot at the offset it last had rather than standing still while
         // the camera moves on
         const tooltip = ctx.tooltipDom;
-        // the link panel's side counts as beyond the canvas, so the tooltip is not beneath it
+        // the link panel's side, or its sheet's height on a narrow viewer, counts as beyond the
+        // canvas, so the tooltip is not beneath it
         const vw = ctx.canvas.clientWidth - ctx.linkPanel.coveredRight();
-        const vh = ctx.canvas.clientHeight;
+        const vh = ctx.canvas.clientHeight - ctx.linkPanel.coveredBottom();
         const onCanvas = screenPos.x >= 0 && screenPos.x <= vw && screenPos.y >= 0 && screenPos.y <= vh;
         if (ctx.activeAnnotation !== this || !ctx.revealed) {
             tooltip.classList.remove('sse-visible');
@@ -354,6 +355,13 @@ export class Annotation extends Script {
         const arrowOffset = 24;
         const tw = tooltip.offsetWidth;
         const th = tooltip.offsetHeight;
+
+        // a sheet that leaves less room than the tooltip needs hides it rather than half of it:
+        // the page is open, and the tooltip comes back when the sheet closes
+        if (ctx.linkPanel.coveredBottom() > 0 && th > vh - 2 * margin) {
+            tooltip.classList.remove('sse-visible');
+            return;
+        }
 
         // Beside the hotspot, vertically centered, on the side it is already on: changing sides
         // jumps it across the hotspot, so it does only when it no longer fits there and does on

@@ -29,6 +29,8 @@ const trimBareUrl = (url: string) => {
             url = url.slice(0, -1);
         } else if (url.endsWith(')') && count(url, ')') > count(url, '(')) {
             url = url.slice(0, -1);
+        } else if (url.endsWith(']') && count(url, ']') > count(url, '[')) {
+            url = url.slice(0, -1);
         } else {
             return url;
         }
@@ -145,4 +147,4 @@ const textDirection = (text: string): 'rtl' | 'ltr' => {
 };
 
 export type { AnnotationTextSegment, ParsedAnnotationText };
-export { isSafeUrl, parseAnnotationText, textDirection };
+export { isSafeUrl, parseAnnotationText, textDirection, trimBareUrl };

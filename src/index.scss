@@ -1642,7 +1642,9 @@
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 8px 8px 8px 16px;
+            padding: 8px;
+            // the title's side gets the wider gutter, in a right-to-left ui too
+            padding-inline: 16px 8px;
             border-bottom: 1px solid rgba(white, 0.08);
 
             > .sse-linkPanelTitle {
@@ -1898,7 +1900,9 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 100%;
+            // above the link panel's sheet, so the buttons that step through the exhibits with
+            // a page open stay in reach (ui/link-panel.ts sets the cover)
+            height: calc(100% - var(--sse-link-panel-cover-bottom, 0px));
 
             > .sse-annotationInfo {
                 display: none;

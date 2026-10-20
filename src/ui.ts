@@ -551,6 +551,8 @@ const initUI = (
     // announcement, of the page's own room as the rooms start, changes nothing
     on('room:changed', (_room: string | null, previous: string | null) => {
         if (previous === null) return;
+        // the page belonged to the old room's exhibit
+        linkPanel?.close();
         annotations?.destroy();
         annotations = null;
         disposeAnnotationControls();

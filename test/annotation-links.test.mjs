@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 // Imported from source rather than the build: the parser is internal to the bundle. Node strips
 // the types itself.
-import { parseAnnotationText, textDirection } from '../src/ui/annotation-links.ts';
+import { isSafeUrl, parseAnnotationText, textDirection, trimBareUrl } from '../src/ui/annotation-links.ts';
 
 describe('parseAnnotationText', () => {
     it('leaves text without links as one text segment', () => {
@@ -129,5 +129,34 @@ describe('textDirection', () => {
     it('reads text with no letters left to right', () => {
         assert.equal(textDirection(''), 'ltr');
         assert.equal(textDirection('3393 - 42'), 'ltr');
+    });
+});
+
+describe('isSafeUrl', () => {
+    // a scheme-relative url is as good as an absolute https one
+    const safe = ['https://a/b', 'http://a/b', '/page', './page', 'page.html?x=1#y', '//other.example/'];
+    const unsafe = ['javascript:alert(1)', 'java\tscript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,x', 'vbscript:x', 'blob:https://a/b', 'file:///etc/passwd'];
+    for (const url of safe) {
+        it(`accepts ${JSON.stringify(url)}`, () => assert.equal(isSafeUrl(url), true));
+    }
+    for (const url of unsafe) {
+        it(`rejects ${JSON.stringify(url)}`, () => assert.equal(isSafeUrl(url), false));
+    }
+});
+
+describe('trimBareUrl', () => {
+    it('leaves a plain url alone', () => {
+        assert.equal(trimBareUrl('https://a.example/item/3393'), 'https://a.example/item/3393');
+    });
+    it('drops sentence punctuation after the url', () => {
+        assert.equal(trimBareUrl('https://a.example/x.'), 'https://a.example/x');
+        assert.equal(trimBareUrl('https://a.example/x,'), 'https://a.example/x');
+    });
+    it('drops a closing bracket that was not opened in the url', () => {
+        assert.equal(trimBareUrl('https://a.example/x)'), 'https://a.example/x');
+        assert.equal(trimBareUrl('https://a.example/x]'), 'https://a.example/x');
+    });
+    it('keeps a closing bracket that the url opened', () => {
+        assert.equal(trimBareUrl('https://a.example/wiki/Foo_(bar)'), 'https://a.example/wiki/Foo_(bar)');
     });
 });
