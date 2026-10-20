@@ -106,6 +106,21 @@ describe('validateSettings', () => {
         assert.throws(() => validateSettings(settings), /unknown room/);
     });
 
+    const videoFixture = (corners) => [
+        { src: './sample.mp4', corners }
+    ];
+    const fourCorners = [[0, 1, 0], [1, 1, 0], [1, 0, 0], [0, 0, 0]];
+
+    it('validateSettings accepts settings with a valid video', () => {
+        const settings = { ...defaultSettings(), videos: videoFixture(fourCorners) };
+        assert.doesNotThrow(() => validateSettings(settings));
+    });
+
+    it('validateSettings rejects a video with three corners', () => {
+        const settings = { ...defaultSettings(), videos: videoFixture(fourCorners.slice(0, 3)) };
+        assert.throws(() => validateSettings(settings), /videos\[0\]/);
+    });
+
     it('accepts a valid v2 document and rejects a broken one', () => {
         assert.doesNotThrow(() => validateSettings(defaultSettings()));
         assert.throws(() => validateSettings({ version: 2 }));
