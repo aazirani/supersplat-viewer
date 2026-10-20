@@ -38,7 +38,8 @@ The app supports a number of URL parameters (these are subject to change):
 | `noanim`     | Start with animation paused                                                                                               |
 | `ministats`  | Show runtime CPU/GPU performance graphs                                                                                   |
 | `lang`       | Override the UI language (`de`, `en`, `es`, `fa`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`; default: detect from browser) |
-| `annotation` | Fly to the annotation with this number once loaded (`annotation=3` for hotspot 3), e.g. for a QR code beside an exhibit   |
+| `annotation` | Fly to the annotation with this number once loaded (`annotation=3` for hotspot 3), e.g. for a QR code beside an exhibit. With rooms, the first room's exhibits unless `room` names another |
+| `room` | Start in this room of a multi-room experience (`room=tunnel`): once loaded, the viewer goes through the first room's door to it, and `annotation` then counts that room's exhibits |
 
 ### Site language
 

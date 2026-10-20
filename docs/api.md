@@ -230,9 +230,10 @@ supported yet; the class names inside the viewer are not API and do change.
 
 An experience can span several separately scanned scenes ("rooms") connected by doorways. The
 first room is the page's own scene. Once the current room has nothing left to stream for the
-view, the room behind the nearest door loads in the background, at its coarsest detail level (the
-level the page itself waits for before its first reveal); entering a door's `preloadRadius`
-switches that background slot to its room. Walking into a door (fly/walk mode) or tapping its
+view, or after 15 s in it on a connection that never catches up, the room behind the nearest door
+loads in the background, at its coarsest detail level (the level the page itself waits for before
+its first reveal); entering a door's `preloadRadius` switches that background slot to its room, and
+a load that was still in flight is cancelled. Walking into a door (fly/walk mode) or tapping its
 marker fades to black, swaps the room, and fades back in at the arrival pose, with the finer
 levels streaming in as after the first reveal. A walk-in keeps the visitor's view relative to the
 door: the angle between their view and the direction through the door (along the door box's
@@ -256,7 +257,7 @@ and settings from the page, so it needs no `contentUrl` or `settingsUrl`; if it 
 | --- | --- |
 | `id` | Unique room name, referenced by `to`. |
 | `contentUrl` | The room's splat file. Required except for the first room. |
-| `settingsUrl` | Optional. The room's own experience settings (annotations, `cameras[0]`, post effects). Missing: no annotations, and the first room's look is reused. |
+| `settingsUrl` | Optional. The room's own experience settings. Applied: `annotations`, `cameras[0]`, `animTracks` (the idle tour), `postEffectSettings`, `tonemapping`, `background.color`, `videos` and `soundUrl`. Not applied: `rooms`, `background.skyboxUrl` and `startMode`, which stay the page's. Missing: no annotations and no sound, and the first room's look is reused. |
 | `doors[].to` | Destination room id. |
 | `doors[].label` | Marker text, shown as written. |
 | `doors[].center`, `size` | Axis-aligned trigger box in **this** room's world coordinates (metres; `size` is the full width/height/depth). The marker sits at `center`. |
@@ -299,6 +300,14 @@ altogether. `validateSettings` is strict: it throws on the first such problem in
     }
 ]
 ```
+
+The page's own `collision` data belongs to the first room: it is cleared on leaving and comes
+back on returning. Doors pause during an XR session, taps included. A link can open in another
+room with the `room` option (`?room=tunnel` on the standalone page): once the first scene has
+loaded the viewer goes through the first room's door to it, as a tap on the marker would, and
+`annotation` then counts that room's exhibits; without `room`, `annotation` counts the first
+room's. An unknown room, or one no door of the first room leads to, warns and starts in the first
+room.
 
 Observe `room:changed` to follow the visitor. It fires once when the first scene has loaded (from
 `null` to the first room's id, before `state.loaded` turns true; `state.room` is `null` until then),
