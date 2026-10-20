@@ -308,6 +308,59 @@ fade-in follows. Annotation indices are per room, so refresh any custom annotati
 `viewer.annotations` when it fires. The `rooms` member of the global object is internal and not part
 of the API.
 
+## Video screens
+
+A screen in the scan (a monitor in a display case, say) can play a video, drawn as an unlit
+rectangle a little in front of the scanned picture, with sound placed at the screen through Web
+Audio: louder near it, coming from its direction as the visitor turns, silent across the room.
+Add the optional top-level `videos` field to the v2 settings; each room's settings file carries
+its own list, and a room without the field has no screens.
+
+| Field | Meaning |
+| --- | --- |
+| `src` | The video file. Relative or http(s). Same-origin, or served with CORS headers: the frames are read into a texture and the sound into Web Audio. |
+| `corners` | Four `[x, y, z]` points in viewer world coordinates: top-left, top-right, bottom-right and bottom-left of the picture, as a visitor facing the screen sees them. Any rectangle in space. |
+| `offset` | Optional, metres, default `0.01`. The picture is drawn this far in front of the corners, toward the visitor, so the scan's own splats of the screen do not bleed through. |
+| `loop` | Optional, default `true`. |
+| `playDistance` | Optional, metres, default `20`. Farther than this from the screen's centre the video pauses and stops costing frames; it resumes a little inside. |
+| `sound` | Optional. `false` plays the video silent. An object: `volume` (0 to 1, default `1`), `refDistance` (metres, default `1`: full volume up to here, then falling off as one over distance), `fadeDistance` (metres, default `12`: silent from here on, reached over the last 3 m). Omitted: an object with the defaults. |
+
+```json
+"videos": [
+    {
+        "src": "./sample.mp4",
+        "corners": [
+            [-8.687, 0.289, -0.485],
+            [-8.644, 0.275, -1.228],
+            [-8.316, 0.026, -1.197],
+            [-8.361, 0.041, -0.467]
+        ],
+        "offset": 0.015,
+        "sound": { "fadeDistance": 10 }
+    }
+]
+```
+
+The viewer is lenient: an invalid entry (no `src`, not four corners, a non-finite number, a
+`fadeDistance` not above `refDistance`) is skipped with a `console.warn` naming it and the rest
+plays. `validateSettings` is strict and throws on the first such problem. A video that cannot be
+loaded warns once and leaves no rectangle, so the scan's own picture stays.
+
+The rectangle appears with the video's first decoded frame and is a child of the room's splat
+entity, so it follows the scan when it is grabbed or shrunk in XR. The viewer keeps rendering on
+demand: a frame is drawn when the video presents a new one, and none while every screen is
+paused. Browsers keep sound off until the visitor interacts, so the videos autoplay muted and
+their sound starts with the first pointer or key press inside the viewer. `state.muted`
+(writable, persisted) silences the screens and the ambient `soundUrl` track; the built-in
+settings panel shows a "Sound" switch for it while the current room has either. With rooms, a
+door transition stops and unloads the old room's videos before the new room's are built.
+
+The debug panel (`?debug`, Ctrl+Shift+D) has a "Pick screen" button for placing a screen: the
+next four clicks on the scene pick the corners in the order above, and the rectangle fitted
+through them is written to the console and the clipboard as a `videos` entry with its size in
+metres. Pick from close up and straight on; a pick that lands on glass or a reflection shows as a
+wrong size.
+
 ## Settings
 
 The `/settings` subpath exports the schema types plus helpers for generating, validating and
@@ -405,6 +458,8 @@ type ExperienceSettings = {
     animTracks: AnimTrack[],
     cameras: Camera[],
     annotations: Annotation[],
+    rooms?: unknown[],   // doors between scenes: see Rooms and doors
+    videos?: unknown[],  // screens playing a video: see Video screens
     startMode: 'default' | 'animTrack' | 'annotation'
 };
 ```

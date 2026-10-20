@@ -56,6 +56,12 @@ A link's `?lang=en` or `?lang=fa` still overrides it. Without it, the language f
 
 Annotation text may hold links, opened in a panel beside the scene: a bare `https://…` url becomes a "More info" button, and `[label](url)` links a word in a sentence. Text in Persian, Arabic or Hebrew reads right to left, in the bundled [Vazirmatn](https://github.com/rastikerdar/vazirmatn) font (SIL Open Font License, `src/fonts/Vazirmatn-OFL.txt`).
 
+### Video screens
+
+A scanned display screen can play a real video, with sound that comes from the screen and fades with distance. Add a `videos` list to `settings.json` (see the [API reference](docs/api.md#video-screens)): the video file, the four corners of the picture in the scan, and optional sound settings. The video must come from the same origin as the page or be served with CORS headers, since its frames are read into a texture and its sound into Web Audio. It plays muted until the visitor's first click, tap or key press, as browsers require; the settings panel then offers a "Sound" switch, remembered across visits, that silences the screens and the ambient `soundUrl` track. Far from a screen the video pauses, so it costs nothing while the visitor is elsewhere.
+
+To place a screen, open the debug panel (`?debug`, or Ctrl+Shift+D), press "Pick screen" and click the picture's four corners from close up and straight on, top-left first and clockwise. The fitted rectangle is written to the console and the clipboard as a `videos` entry, with its size, so a pick that landed on the case's glass or a reflection shows up as a wrong size; pick again if so, and adjust `offset` until the scan's own picture no longer shows through.
+
 ### Renderer
 
 By default the viewer uses WebGPU when available (falling back automatically when not). The flag below forces the WebGL renderer (also required for WebXR / AR / VR):
