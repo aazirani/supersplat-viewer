@@ -91,6 +91,50 @@ describe('defaults', () => {
 });
 
 describe('validateSettings', () => {
+    const roomsFixture = (to) => [
+        {
+            id: 'hall',
+            doors: [
+                {
+                    to,
+                    label: 'Tunnel',
+                    center: [0, 0, 0],
+                    size: [1, 2, 1],
+                    arrival: { position: [0, 1, 0], target: [0, 1, 1] }
+                }
+            ]
+        },
+        { id: 'tunnel', contentUrl: './tunnel/lod-meta.json', doors: [] }
+    ];
+
+    it('validateSettings accepts settings with valid rooms', () => {
+        const settings = { ...defaultSettings(), rooms: roomsFixture('tunnel') };
+        assert.doesNotThrow(() => validateSettings(settings));
+    });
+
+    it('validateSettings rejects rooms with an unknown door target', () => {
+        const settings = { ...defaultSettings(), rooms: roomsFixture('cellar') };
+        assert.throws(() => validateSettings(settings), /unknown room/);
+    });
+
+    const videoFixture = (corners) => [{ src: './sample.mp4', corners }];
+    const fourCorners = [
+        [0, 1, 0],
+        [1, 1, 0],
+        [1, 0, 0],
+        [0, 0, 0]
+    ];
+
+    it('validateSettings accepts settings with a valid video', () => {
+        const settings = { ...defaultSettings(), videos: videoFixture(fourCorners) };
+        assert.doesNotThrow(() => validateSettings(settings));
+    });
+
+    it('validateSettings rejects a video with three corners', () => {
+        const settings = { ...defaultSettings(), videos: videoFixture(fourCorners.slice(0, 3)) };
+        assert.throws(() => validateSettings(settings), /videos\[0\]/);
+    });
+
     it('accepts a valid v2 document and rejects a broken one', () => {
         assert.doesNotThrow(() => validateSettings(defaultSettings()));
         assert.throws(() => validateSettings({ version: 2 }));
@@ -117,6 +161,22 @@ describe('validateSettings', () => {
         const settings = clone(defaultSettings());
         settings.cameras[0].initial.fov = CAMERA_FOV_RANGE.max + 1;
         assert.throws(() => validateSettings(settings, { limits: true }), /cameras\[0\].initial.fov/);
+    });
+
+    it('allows annotation text up to a museum description, 1000 characters, when asked', () => {
+        const annotation = (text) => ({
+            position: [0, 0, 0],
+            title: 'Moviola UD 20 CS',
+            text,
+            camera: clone(defaultSettings().cameras[0])
+        });
+        const settings = clone(defaultSettings());
+
+        settings.annotations = [annotation('م'.repeat(1000))];
+        assert.doesNotThrow(() => validateSettings(settings, { limits: true }));
+
+        settings.annotations = [annotation('م'.repeat(1001))];
+        assert.throws(() => validateSettings(settings, { limits: true }), /annotations\[0\].text must be at most 1000/);
     });
 
     it('allows more than one camera — the format permits it even though the viewer reads only the first', () => {

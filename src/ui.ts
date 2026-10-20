@@ -4,18 +4,24 @@ import type { EventHandler } from 'playcanvas';
 import { version as appVersion } from '../package.json';
 
 import type { Picker } from './picker';
+import type { RoomDef } from './rooms/rooms-settings';
+import type { ExperienceSettings } from './settings';
 import { Tooltip } from './tooltip';
 import type { Global, ViewerHandle } from './types';
 import { initAnnotationControls } from './ui/annotation-controls';
 import { Annotations } from './ui/annotations';
 import { initCameraControls } from './ui/camera-controls';
 import { initControlsHint, readControlsOpen, writeControlsOpen } from './ui/controls-hint';
+import { DoorMarkers } from './ui/door-markers';
 import { initFullscreenControls } from './ui/fullscreen-controls';
 import { initJoystick } from './ui/joystick';
+import { initLinkPanel } from './ui/link-panel';
+import type { LinkPanel } from './ui/link-panel';
 import { initPlayback } from './ui/playback';
 import { initVrPrompt } from './ui/vr-prompt';
 import { initXrControls } from './ui/xr-controls';
 import { initXrHint } from './ui/xr-hint';
+import { readVideos } from './video/videos-settings';
 import { visionPro } from './xr';
 
 // show the poster image over the hidden canvas, blurry at first and sharpening as loading
@@ -118,6 +124,8 @@ const initUI = (
         'loadingBar',
         'showCollisionRow',
         'showCollisionCheck',
+        'soundRow',
+        'soundCheck',
         'showCollisionShortcut',
         'walkShortcut',
         'playShortcut',
@@ -494,6 +502,22 @@ const initUI = (
         dom.showCollisionCheck.classList.toggle('sse-active', value);
     });
 
+    // Sound: a settings row shown while the room has any to offer (video screens with sound, or
+    // an ambient track); its switch is on while the scene is not muted
+    const hasSound = (settings: ExperienceSettings) =>
+        settings.soundUrl !== undefined || readVideos(settings.videos).videos.some((video) => video.sound !== null);
+    const showSoundRow = () => dom.soundRow.classList.toggle('sse-hidden', !hasSound(global.settings));
+    showSoundRow();
+    on('room:changed', showSoundRow);
+
+    dom.soundRow.addEventListener('click', () => {
+        state.muted = !state.muted;
+    });
+
+    const showMuted = (muted: boolean) => dom.soundCheck.classList.toggle('sse-active', !muted);
+    showMuted(state.muted);
+    on('muted:changed', showMuted);
+
     dom.settings.addEventListener('click', () => {
         showSettings(!isVisible(dom.settingsPanel));
         showUI();
@@ -502,11 +526,81 @@ const initUI = (
     // Initialize touch joystick for fly mode
     disposers.push(initJoystick(viewer, root));
 
-    disposers.push(initAnnotationControls(viewer, root));
-    if (viewer.annotations.length > 0) {
-        const annotations = new Annotations(viewer, root, global.camera, getPicker, getCameraProgress);
-        disposers.push(() => annotations.destroy());
-    }
+    // The annotations, their controls and the link panel their pages open in. Without rooms they
+    // are built once, the panel and hotspots only when there are annotations; with rooms they are
+    // rebuilt from each room's own list (below), the panel created once some room needs it
+    let disposeAnnotationControls = initAnnotationControls(viewer, root);
+    let linkPanel: LinkPanel | null = null;
+    let annotations: Annotations | null = null;
+    const buildAnnotations = () => {
+        if (!linkPanel) {
+            const created = initLinkPanel(viewer, root, localize);
+            linkPanel = created.linkPanel;
+            disposers.push(created.dispose);
+        }
+        annotations = new Annotations(viewer, root, global.camera, getPicker, getCameraProgress, linkPanel, localize);
+    };
+    if (viewer.annotations.length > 0) buildAnnotations();
+    disposers.push(() => {
+        disposeAnnotationControls();
+        annotations?.destroy();
+    });
+
+    // Rooms: the indices are per room. The viewer has swapped in the room's settings and cleared
+    // the selection by the time it announces the room, so its list is read fresh. The first
+    // announcement, of the page's own room as the rooms start, changes nothing
+    on('room:changed', (_room: string | null, previous: string | null) => {
+        if (previous === null) return;
+        // the page belonged to the old room's exhibit
+        linkPanel?.close();
+        annotations?.destroy();
+        annotations = null;
+        disposeAnnotationControls();
+        disposeAnnotationControls = initAnnotationControls(viewer, root);
+        buildAnnotations();
+    });
+
+    // The current room's door markers. The room manager is exposed on the first reveal, by a
+    // `firstFrame` listener added after this one, so it is looked for once that event's listeners
+    // have all run. Markers exist only from then on: a door is entered only once the manager has
+    // started. The manager moves to the new room after the viewer announces it, so the markers
+    // follow its own announcement
+    let doorMarkers: DoorMarkers | null = null;
+    let disposed = false;
+    const showDoors = (doors: RoomDef['doors']) => {
+        doorMarkers?.destroy();
+        doorMarkers = new DoorMarkers(
+            global.app,
+            global.camera,
+            dom.sceneLayer,
+            doors,
+            (index) => {
+                // failures are reported by the manager itself
+                global.rooms?.enter(index).catch((): void => undefined);
+                // the marker shows the tap's effect on the next frame, which a still camera
+                // would not draw
+                global.app.renderNextFrame = true;
+            },
+            (index) => global.rooms?.doorState(index) ?? { load: 'idle', progress: 0, pending: null },
+            localize,
+            root.lang
+        );
+    };
+    const firstFrame = events.once('firstFrame', () => {
+        queueMicrotask(() => {
+            const { rooms } = global;
+            if (disposed || !rooms) return;
+            showDoors(rooms.current.doors);
+            rooms.onChange = (room) => showDoors(room.doors);
+        });
+    });
+    disposers.push(() => {
+        disposed = true;
+        firstFrame.off();
+        doorMarkers?.destroy();
+        doorMarkers = null;
+        if (global.rooms) global.rooms.onChange = null;
+    });
 
     // tooltips
     const tooltip = new Tooltip(dom.tooltip);

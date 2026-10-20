@@ -1,100 +1,102 @@
 {
-  "name": "@playcanvas/supersplat-viewer",
-  "version": "1.37.0",
-  "author": "PlayCanvas <support@playcanvas.com>",
-  "homepage": "https://github.com/playcanvas/supersplat-viewer#readme",
-  "description": "Viewer for https://superspl.at",
-  "keywords": [
-    "playcanvas",
-    "ply",
-    "gaussian",
-    "splat",
-    "viewer"
-  ],
-  "license": "MIT",
-  "type": "module",
-  "sideEffects": false,
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+    "name": "@playcanvas/supersplat-viewer",
+    "version": "1.37.0",
+    "author": "PlayCanvas <support@playcanvas.com>",
+    "homepage": "https://github.com/playcanvas/supersplat-viewer#readme",
+    "description": "Viewer for https://superspl.at",
+    "keywords": [
+        "playcanvas",
+        "ply",
+        "gaussian",
+        "splat",
+        "viewer"
+    ],
+    "license": "MIT",
+    "type": "module",
+    "sideEffects": false,
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./viewer": {
+            "types": "./dist/viewer.d.ts",
+            "import": "./dist/viewer.js"
+        },
+        "./viewer.css": "./dist/viewer.css",
+        "./settings": {
+            "types": "./dist/settings.d.ts",
+            "import": "./dist/settings.js"
+        }
     },
-    "./viewer": {
-      "types": "./dist/viewer.d.ts",
-      "import": "./dist/viewer.js"
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/playcanvas/supersplat-viewer.git"
     },
-    "./viewer.css": "./dist/viewer.css",
-    "./settings": {
-      "types": "./dist/settings.d.ts",
-      "import": "./dist/settings.js"
+    "bugs": {
+        "url": "https://github.com/playcanvas/supersplat-viewer/issues"
+    },
+    "files": [
+        "dist",
+        "public/index.html",
+        "public/index.css",
+        "public/index.js",
+        "public/index.js.map",
+        "docs/api.md",
+        "LICENSE",
+        "package.json",
+        "README.md",
+        "src/fonts/Vazirmatn-OFL.txt"
+    ],
+    "peerDependencies": {
+        "playcanvas": "^2.23.0"
+    },
+    "peerDependenciesMeta": {
+        "playcanvas": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@playcanvas/eslint-config": "3.0.0-beta.8",
+        "@rollup/plugin-json": "6.1.0",
+        "@rollup/plugin-node-resolve": "16.0.3",
+        "@rollup/plugin-typescript": "12.3.0",
+        "autoprefixer": "10.6.1",
+        "concurrently": "9.2.4",
+        "eslint": "9.39.5",
+        "globals": "17.13.0",
+        "playcanvas": "2.23.2",
+        "postcss": "8.5.28",
+        "prettier": "3.9.9",
+        "publint": "0.3.25",
+        "rollup": "4.63.6",
+        "rollup-plugin-dts": "6.5.1",
+        "rollup-plugin-scss": "4.0.1",
+        "rollup-plugin-string": "3.0.0",
+        "sass": "1.105.1",
+        "serve": "14.2.6",
+        "typescript": "5.9.3"
+    },
+    "scripts": {
+        "build": "rollup -c",
+        "prepare": "npm run build",
+        "develop": "concurrently --kill-others \"npm run watch\" \"npm run serve\" \"npm run type:watch\"",
+        "fmt": "prettier --check src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
+        "fmt:fix": "prettier --write src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
+        "lint": "eslint src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
+        "lint:fix": "eslint src test rollup.config.mjs eslint.config.mjs prettier.config.mjs --fix",
+        "publint": "publint",
+        "serve": "serve public -C -c ../serve.json",
+        "test": "npm run build && npm run test:unit",
+        "test:unit": "node --test",
+        "type:check": "tsc --noEmit",
+        "type:watch": "tsc --noEmit --watch --preserveWatchOutput",
+        "watch": "rollup -c -w"
+    },
+    "engines": {
+        "node": ">=20.0.0"
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/playcanvas/supersplat-viewer.git"
-  },
-  "bugs": {
-    "url": "https://github.com/playcanvas/supersplat-viewer/issues"
-  },
-  "files": [
-    "dist",
-    "public/index.html",
-    "public/index.css",
-    "public/index.js",
-    "public/index.js.map",
-    "docs/api.md",
-    "LICENSE",
-    "package.json",
-    "README.md"
-  ],
-  "peerDependencies": {
-    "playcanvas": "^2.23.0"
-  },
-  "peerDependenciesMeta": {
-    "playcanvas": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "@playcanvas/eslint-config": "3.0.0-beta.8",
-    "@rollup/plugin-json": "6.1.0",
-    "@rollup/plugin-node-resolve": "16.0.3",
-    "@rollup/plugin-typescript": "12.3.0",
-    "autoprefixer": "10.6.1",
-    "concurrently": "9.2.4",
-    "eslint": "9.39.5",
-    "globals": "17.13.0",
-    "playcanvas": "2.23.2",
-    "postcss": "8.5.28",
-    "prettier": "3.9.9",
-    "publint": "0.3.25",
-    "rollup": "4.63.6",
-    "rollup-plugin-dts": "6.5.1",
-    "rollup-plugin-scss": "4.0.1",
-    "rollup-plugin-string": "3.0.0",
-    "sass": "1.105.1",
-    "serve": "14.2.6",
-    "typescript": "5.9.3"
-  },
-  "scripts": {
-    "build": "rollup -c",
-    "develop": "concurrently --kill-others \"npm run watch\" \"npm run serve\" \"npm run type:watch\"",
-    "fmt": "prettier --check src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
-    "fmt:fix": "prettier --write src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
-    "lint": "eslint src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
-    "lint:fix": "eslint src test rollup.config.mjs eslint.config.mjs prettier.config.mjs --fix",
-    "publint": "publint",
-    "serve": "serve public -C -c ../serve.json",
-    "test": "npm run build && npm run test:unit",
-    "test:unit": "node --test",
-    "type:check": "tsc --noEmit",
-    "type:watch": "tsc --noEmit --watch --preserveWatchOutput",
-    "watch": "rollup -c -w"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  }
 }

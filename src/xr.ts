@@ -473,13 +473,23 @@ const initXr = (global: Global) => {
     return {
         start,
         end,
-        setCollision: (value: Collision) => {
+        // null (a room change) drops the collision, back to the navigation's own floor plane
+        setCollision: (value: Collision | null) => {
             collision = value;
-            navigation.castRay = castRay;
+            navigation.castRay = value ? castRay : null;
             target?.destroy();
             target = value instanceof VoxelCollision ? new TeleportTarget(app, value) : null;
         },
         setGrabTarget: (entity: Entity, scene: boolean) => {
+            // a room change points these at the new room's entity, so the previous ones go first
+            iceCream?.destroy();
+            iceCream = null;
+            grabMove?.destroy();
+            grabMove = null;
+            if (manipulation) {
+                parent.script.destroy(XrManipulation.scriptName);
+                manipulation = null;
+            }
             if (scene) {
                 grabMove = new XrGrabMove(app, parent, setUserScale);
             } else {

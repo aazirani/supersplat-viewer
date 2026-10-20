@@ -68,9 +68,9 @@ scene is visible. It returns:
 
 | Member | Purpose |
 | --- | --- |
-| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`) apply at once; the rest are the viewer's to report and are `readonly` in the types |
+| `state` | Observable state. Writable keys (`cameraMode`, `performanceMode`, `showAnnotations`, `gamingControls`, `animationPaused`, `collisionOverlayEnabled`, `controlsHidden`, `inputEnabled`, `muted`) apply at once; the rest are the viewer's to report and are `readonly` in the types. `state.room` is the current room's id when two or more usable rooms are configured, else `null`. It stays `null` until the first scene has loaded, then `room:changed` fires once with the first room's id (before `loaded` turns true). On each door transition it fires while the screen is black: after the new room is in place and before the old room is released and the view fades back in |
 | `events` | Fires `<key>:changed` with `(value, previous)` for every key of `state` |
-| `annotations` | Annotation data in settings order, available as soon as creation resolves. Editing entries is unsupported |
+| `annotations` | The current room's annotation data in settings order, available as soon as creation resolves. A getter: after `room:changed` it reflects the new room. Editing entries is unsupported |
 | `captureFrame(options?)` | Renders offscreen, supersampled, and resolves to `{ width, height, data }` with `data` base64. Waits for the first frame |
 | `seek(time)` | Selects the animation camera and seeks in seconds, preserving pause state. Requires a loaded viewer with an animation; throws for non-finite time or after destruction. Requests rendering without waiting for a frame |
 | `frameScene()` | Frames the whole scene, in orbit mode; requires `state.loaded` |
@@ -152,11 +152,11 @@ The value stays active until replaced. The viewer clears it on camera/XR mode ch
 
 ### Saved preferences
 
-`performanceMode`, `gamingControls` and `showAnnotations` load from and write changes to the existing origin-wide local-storage keys, with or without the built-in UI. Creation does not write defaults; the legacy `retinaDisplay` migration is preserved. A new viewer reads the saved values; already-mounted viewers keep their own state rather than synchronizing through storage. The host can change these preferences through the corresponding writable state fields. Storage denial or quota errors leave the viewer usable, and destruction removes its persistence subscriptions. The built-in UI also remembers whether its controls panel is open, under the origin-wide key `controlsPanelOpen`; it is open for a new visitor until they close it.
+`performanceMode`, `gamingControls`, `showAnnotations` and `muted` load from and write changes to the existing origin-wide local-storage keys, with or without the built-in UI. Creation does not write defaults; the legacy `retinaDisplay` migration is preserved. A new viewer reads the saved values; already-mounted viewers keep their own state rather than synchronizing through storage. The host can change these preferences through the corresponding writable state fields. Storage denial or quota errors leave the viewer usable, and destruction removes its persistence subscriptions. The built-in UI also remembers whether its controls panel is open, under the origin-wide key `controlsPanelOpen`; it is open for a new visitor until they close it.
 
 ### Controlling annotations
 
-`viewer.annotations` contains each annotation's title, text, position, camera and optional extras. Indices follow settings order and stay fixed for the instance. Treat the data as read-only; runtime annotation editing is not supported.
+`viewer.annotations` contains each annotation's title, text, position, camera and optional extras. Indices follow settings order. Without `rooms` they stay fixed for the instance; when rooms are configured they are per room and change on `room:changed`, so re-read `viewer.annotations` and expect `state.selectedAnnotation` to be reset to `null`. Treat the data as read-only; runtime annotation editing is not supported.
 
 `state.selectedAnnotation` is the selected index, or `null` when nothing is selected. Observe `selectedAnnotation:changed` to update custom controls or panels; it fires when the index changes. The built-in hotspots and previous/next buttons use the same `selectAnnotation(index)` command as the host:
 
@@ -174,6 +174,13 @@ else viewer.events.once('loaded:changed', selectFirst);
 ```
 
 Selection switches to orbit and transitions to the annotation's authored camera without changing the animation pause flag. Selecting the same index again navigates again. `selectAnnotation(null)` clears selection while leaving the camera and any transition alone. Commands return immediately and throw before readiness, after destruction, or for an index that is not an integer in range. Clearing an empty annotation list is valid.
+
+A link's page opens in a sandboxed frame that cannot navigate the viewer away. A page from the
+viewer's own origin runs with an opaque origin (no `allow-same-origin`: with scripts and its own
+origin it could undo the sandbox), so its web fonts and `fetch` calls go out as cross-origin
+requests. A page written beside `settings.json` therefore needs its fonts and data served with
+`Access-Control-Allow-Origin: *`, or it shows fallback fonts; pages on other hosts are framed as
+usual, and hosts that refuse framing can still be opened from the panel's new-tab button.
 
 With `ui: false`, the same data, selection and camera navigation are available; the host supplies presentation. `state.showAnnotations` controls built-in visibility and does not clear selection, so showing annotations again restores the selected panel. The built-in navigator retains its last title and navigation position after dismissal, greyed out while nothing is selected; clicking it selects that annotation again. Clicking elsewhere inside this viewer clears selection; clicking host controls or another viewer does not.
 
@@ -225,6 +232,150 @@ yours too. Everything between the two, replacing some of the UI but keeping the 
 supported yet; the class names inside the viewer are not API and do change.
 
 [The custom UI example](https://github.com/playcanvas/supersplat-viewer/blob/main/src/dev/custom-ui.html) demonstrates loading, playback, camera modes, directional movement, annotations, preferences and fullscreen/XR using only the handle and documented state events. Run it locally at `/custom-ui?content=./scene.ply&settings=./settings.json` (`&webgl` selects WebGL). It is a development example, not a React package or a published UI component. Its controls live outside the fullscreen viewer root, so use Escape or the browser's exit affordance to leave fullscreen.
+
+## Rooms and doors
+
+An experience can span several separately scanned scenes ("rooms") connected by doorways. The
+first room is the page's own scene. Once the current room has nothing left to stream for the
+view, or after 15 s in it on a connection that never catches up, the room behind the nearest door
+loads in the background, at its coarsest detail level (the level the page itself waits for before
+its first reveal); entering a door's `preloadRadius` switches that background slot to its room, and
+a load that was still in flight is dropped (its bytes may keep arriving, but nothing is kept). Walking into a door (fly/walk mode) or tapping its
+marker fades to black, swaps the room, and fades back in at the arrival pose, with the finer
+levels streaming in as after the first reveal. A walk-in keeps the visitor's view relative to the
+door: the angle between their view and the direction through the door (along the door box's
+thinner horizontal side) is applied to the arrival's forward, and their pitch is kept, so walking
+through backwards arrives looking back at the door. A tap arrives at the configured pose, as does
+a walk-in through a box as deep as it is wide. A door entered before its room is ready never
+fades: the visitor waits in the current room, the marker fills a ring with the download's
+progress and names it under the room's name, and the door opens the moment the room is ready. A
+walk-in waits while the visitor stands in the doorway (stepping out, or leaving fly/walk mode,
+cancels it); a tapped door opens wherever the visitor is by then, and tapping it again cancels.
+Loading goes on in the background after a cancel. A room that fails to load, or stops loading
+for 30 s, shows its marker dimmed as unavailable with a `console.warn`; approaching its door
+afresh or tapping the marker tries again. Orbit mode and XR sessions never trigger a door by
+position; the marker can be tapped in any camera mode. A settings file without `rooms` behaves as
+before.
+
+Add the optional top-level `rooms` field to the v2 settings. The first entry takes its content
+and settings from the page, so it needs no `contentUrl` or `settingsUrl`; if it has them they are ignored.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Unique room name, referenced by `to`. |
+| `contentUrl` | The room's splat file. Required except for the first room. |
+| `settingsUrl` | Optional. The room's own experience settings. Applied: `annotations`, `cameras[0]`, `animTracks` (the idle tour), `postEffectSettings`, `tonemapping`, `background.color`, `videos` and `soundUrl`. Not applied: `rooms`, `background.skyboxUrl` and `startMode`, which stay the page's. Missing: no annotations and no sound, and the first room's look is reused. |
+| `doors[].to` | Destination room id. |
+| `doors[].label` | Marker text, shown as written. |
+| `doors[].center`, `size` | Axis-aligned trigger box in **this** room's world coordinates (metres; `size` is the full width/height/depth). The marker sits at `center`. |
+| `doors[].preloadRadius` | Optional, default 8. Distance from `center` within which the destination takes the background slot over the nearest door's room. |
+| `doors[].arrival` | Camera `position` and look-at `target` in the **destination** room's coordinates: where a visitor walking straight through arrives, and what they face. Must lie outside the destination's own door boxes. |
+
+Coordinates are world coordinates as the viewer shows them. The viewer is lenient: invalid entries (unknown `to`,
+duplicate `id`, missing `contentUrl` on a non-first room, malformed vectors) are skipped with a
+`console.warn` and the rest keeps working, except that an invalid first room disables rooms
+altogether. `validateSettings` is strict: it throws on the first such problem instead.
+
+```json
+"rooms": [
+    {
+        "id": "hall",
+        "doors": [
+            {
+                "to": "tunnel",
+                "label": "تونل",
+                "center": [5.0, 0.3, -5.8],
+                "size": [1.4, 2.6, 1.0],
+                "preloadRadius": 8,
+                "arrival": { "position": [-5.3, 1.35, -0.75], "target": [0, 1.2, -0.75] }
+            }
+        ]
+    },
+    {
+        "id": "tunnel",
+        "contentUrl": "./tunnel/lod-meta.json",
+        "settingsUrl": "./tunnel-settings.json",
+        "doors": [
+            {
+                "to": "hall",
+                "label": "تالار",
+                "center": [-6.8, 0.9, -0.75],
+                "size": [1.0, 2.4, 1.4],
+                "arrival": { "position": [5.0, 0.6, -4.2], "target": [5.0, 0.3, 2.0] }
+            }
+        ]
+    }
+]
+```
+
+The page's own `collision` data belongs to the first room: it is cleared on leaving and comes
+back on returning. Doors pause during an XR session, taps included. A link can open in another
+room with the `room` option (`?room=tunnel` on the standalone page): once the first scene has
+loaded the viewer goes through the first room's door to it, as a tap on the marker would, and
+`annotation` then counts that room's exhibits; without `room`, `annotation` counts the first
+room's. An unknown room, or one no door of the first room leads to, warns and starts in the first
+room.
+
+Observe `room:changed` to follow the visitor. It fires once when the first scene has loaded (from
+`null` to the first room's id, before `state.loaded` turns true; `state.room` is `null` until then),
+and then on each door transition while the screen is faded to black: the camera is in the new room
+and `viewer.annotations` already returns its list, the old room has not been released yet, and the
+fade-in follows. Annotation indices are per room, so refresh any custom annotation UI from
+`viewer.annotations` when it fires. The `rooms` member of the global object is internal and not part
+of the API.
+
+## Video screens
+
+A screen in the scan (a monitor in a display case, say) can play a video, drawn as an unlit
+rectangle a little in front of the scanned picture, with sound placed at the screen through Web
+Audio: louder near it, coming from its direction as the visitor turns, silent across the room.
+Add the optional top-level `videos` field to the v2 settings; each room's settings file carries
+its own list, and a room without the field has no screens.
+
+| Field | Meaning |
+| --- | --- |
+| `src` | The video file. Relative or http(s). Same-origin, or served with CORS headers: the frames are read into a texture and the sound into Web Audio. |
+| `corners` | Four `[x, y, z]` points in viewer world coordinates: top-left, top-right, bottom-right and bottom-left of the picture, as a visitor facing the screen sees them. Any rectangle in space. |
+| `offset` | Optional, metres, default `0.01`. The picture is drawn this far in front of the corners, toward the visitor, so the scan's own splats of the screen do not bleed through. |
+| `loop` | Optional, default `true`. |
+| `playDistance` | Optional, metres, default `20`. Farther than this from the screen's centre the video pauses and stops costing frames; it resumes a little inside. |
+| `sound` | Optional. `false` plays the video silent. An object: `volume` (0 to 1, default `1`), `refDistance` (metres, default `1`: full volume up to here, then falling off as one over distance), `fadeDistance` (metres, default `12`: silent from here on, reached over the last 3 m). Omitted: an object with the defaults. |
+
+```json
+"videos": [
+    {
+        "src": "./sample.mp4",
+        "corners": [
+            [-8.687, 0.289, -0.485],
+            [-8.644, 0.275, -1.228],
+            [-8.316, 0.026, -1.197],
+            [-8.361, 0.041, -0.467]
+        ],
+        "offset": 0.015,
+        "sound": { "fadeDistance": 10 }
+    }
+]
+```
+
+The viewer is lenient: an invalid entry (no `src`, not four corners, a non-finite number, a
+`fadeDistance` not above `refDistance`) is skipped with a `console.warn` naming it and the rest
+plays. `validateSettings` is strict and throws on the first such problem. A video that cannot be
+loaded warns once and leaves no rectangle, so the scan's own picture stays.
+
+The rectangle appears with the video's first decoded frame and is a child of the room's splat
+entity, so it follows the scan when it is grabbed or shrunk in XR. The viewer keeps rendering on
+demand: a frame is drawn when the video presents a new one, and none while every screen is
+paused. Browsers keep sound off until the visitor interacts, so the videos autoplay muted and
+their sound starts with the first pointer or key press inside the viewer. `state.muted`
+(writable, persisted) silences the screens and the ambient `soundUrl` track; the built-in
+settings panel shows a "Sound" switch for it while the current room has either. With rooms, a
+door transition stops and unloads the old room's videos before the new room's are built.
+
+The debug panel (`?debug`, Ctrl+Shift+D) has a "Pick screen" button for placing a screen: the
+next four clicks on the scene pick the corners in the order above, and the rectangle fitted
+through them is written to the console and the clipboard as a `videos` entry with its size in
+metres. Pick from close up and straight on; a pick that lands on glass or a reflection shows as a
+wrong size.
 
 ## Settings
 
@@ -323,6 +474,8 @@ type ExperienceSettings = {
     animTracks: AnimTrack[],
     cameras: Camera[],
     annotations: Annotation[],
+    rooms?: unknown[],   // doors between scenes: see Rooms and doors
+    videos?: unknown[],  // screens playing a video: see Video screens
     startMode: 'default' | 'animTrack' | 'annotation'
 };
 ```

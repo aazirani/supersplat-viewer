@@ -61,6 +61,15 @@ class InputController {
         }
     }
 
+    /**
+     * Stop held movement: the move input and the keys held now. A room change calls it, since it
+     * keeps fly mode as fly, so no mode change clears the input.
+     */
+    clearMoveInput() {
+        this._clearMoveInput();
+        this._keyboardMouse.releaseKeys();
+    }
+
     set collision(value: Collision | null) {
         this._navInteraction.collision = value;
     }

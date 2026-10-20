@@ -79,9 +79,14 @@ class KeyboardMouseDevice implements InputDevice {
     // releases reach `update` as ordinary deltas and unwind the running axis
     private _onInputEnabled = (enabled: boolean) => {
         if (!enabled) {
-            (this._source as unknown as KeyboardInternals)._keyNow.fill(0);
+            this.releaseKeys();
         }
     };
+
+    /** Forget the keys held now, so held movement stops until a key is pressed again. */
+    releaseKeys() {
+        (this._source as unknown as KeyboardInternals)._keyNow.fill(0);
+    }
 
     /**
      * Get the underlying source so other code (PointerLockManager) can

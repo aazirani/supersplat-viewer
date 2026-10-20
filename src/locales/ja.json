@@ -4,6 +4,7 @@
     "settings.gaming-controls": "ゲームコントロール",
     "settings.show-annotations": "注釈を表示",
     "settings.show-collision": "コリジョンを表示",
+    "settings.sound": "音声",
     "settings.frame": "フィット",
     "settings.reset": "リセット",
 
@@ -74,5 +75,13 @@
     "xr-menu.exit-vr": "VRを終了",
     "xr-menu.exit-ar": "ARを終了",
     "xr-menu.ice-cream": "アイスクリームモード",
-    "xr-hint.stalled": "反応がない場合は、タブを切り替えてから戻ってください。"
+    "xr-hint.stalled": "反応がない場合は、タブを切り替えてから戻ってください。",
+    "door.loading": "読み込み中…",
+    "door.loading-percent": "読み込み中 {percent}",
+    "door.cancel": "タップでキャンセル",
+    "door.unavailable": "利用できません。タップで再試行",
+
+    "annotation.more-info": "詳細",
+    "link-panel.open-in-new-tab": "新しいタブで開く",
+    "link-panel.close": "閉じる"
 }

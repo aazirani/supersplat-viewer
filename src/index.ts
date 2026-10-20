@@ -17,21 +17,25 @@ import { App } from './app';
 import { MeshCollision, loadVoxelCollision } from './collision';
 import type { Collision } from './collision';
 import { observe } from './core/observe';
+import { contentName, loadGsplat } from './load-gsplat';
 import { initLocalization } from './localization';
+import { addPersianFont } from './persian-font';
 import type { CreateViewerOptions } from './options';
 import { persistPreferences, readPreferences } from './preferences';
+import { createFadeOverlay } from './rooms/fade-overlay';
+import { createRoomHost, firstRoomInstance } from './rooms/room-host';
+import { RoomManager } from './rooms/room-manager';
+import { createSettleWatch } from './rooms/settle-watch';
+import { readRooms } from './rooms/rooms-settings';
 import { importSettings } from './settings';
 import type { Config, Global, State, ViewerHandle } from './types';
 import { initPoster, initUI } from './ui';
 import uiHtml from './ui.html';
+import { initVideoScreens } from './video/video-screens';
+import { startAnnotationIndex } from './start-annotation';
+import { startRoomDoor } from './start-room';
 import { Viewer } from './viewer';
 import { version as appVersion } from '../package.json';
-
-// The filename's extension selects the gsplat parser, so a url with no usable name (a data:
-// uri) needs the config to name its content instead; falsy (an empty name) falls back to the
-// url-derived name.
-const contentName = (contentUrl: string, contentFilename?: string | null) =>
-    contentFilename || new URL(contentUrl, location.href).pathname.split('/').pop();
 
 // Whether a prefetched response for this content is worth starting. The engine's octree parser
 // fetches lod-meta.json itself and ignores `asset.file.contents`, so prefetching it downloads
@@ -42,59 +46,6 @@ const contentName = (contentUrl: string, contentFilename?: string | null) =>
 // let the octree path reuse the response instead of opting out of it.
 const isPrefetchable = (contentUrl: string, contentFilename?: string | null) =>
     contentName(contentUrl, contentFilename)?.toLowerCase() !== 'lod-meta.json';
-
-const loadGsplat = async (
-    app: AppBase,
-    config: Config,
-    progressCallback: (progress: number) => void,
-    cancelled: () => boolean
-) => {
-    const { contents, contentUrl, contentFilename } = config;
-    const c = contents as unknown as ArrayBuffer;
-    const filename = contentName(contentUrl, contentFilename);
-    const data = filename.toLowerCase() === 'meta.json' ? await (await contents).json() : undefined;
-
-    // Reading that metadata spans a network round trip, so a destroy can land in the middle of
-    // it. `app.destroy()` nulls the asset registry, so registering the asset now would throw
-    // from the engine's internals; reject instead, which the viewer's load chains expect.
-    if (cancelled()) {
-        throw new Error('loadGsplat: the viewer was destroyed while loading');
-    }
-
-    const asset = new Asset(filename, 'gsplat', { url: contentUrl, filename, contents: c }, data);
-
-    return new Promise<Entity>((resolve, reject) => {
-        asset.on('load', () => {
-            // always name the app: the engine's default is the most recently created one,
-            // which is another viewer's when two share a page
-            const entity = new Entity('gsplat', app);
-            entity.setLocalEulerAngles(0, 0, 180);
-            entity.addComponent('gsplat', {
-                unified: true,
-                asset
-            });
-            app.root.addChild(entity);
-            resolve(entity);
-        });
-
-        let watermark = 0;
-        asset.on('progress', (received, length) => {
-            const progress = Math.min(1, received / length) * 100;
-            if (progress > watermark) {
-                watermark = progress;
-                progressCallback(Math.trunc(watermark));
-            }
-        });
-
-        asset.on('error', (err) => {
-            console.log(err);
-            reject(err);
-        });
-
-        app.assets.add(asset);
-        app.assets.load(asset);
-    });
-};
 
 const loadSkybox = (app: AppBase, url: string) => {
     return new Promise<Asset>((resolve, reject) => {
@@ -301,8 +252,109 @@ const resolveConfig = (options: CreateViewerOptions): Config => ({
     heatmap: options.heatmap ?? false,
     debug: options.debug ?? false,
     lang: options.lang,
+    defaultLang: options.defaultLang,
+    annotation: options.annotation,
+    room: options.room,
     exposeGlobals: options.exposeGlobals ?? false
 });
+
+// Doors between scenes, when the settings define at least two rooms. The first room is the
+// page's own scene; the others load in the background after the first reveal.
+const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, destroyed: () => boolean) => {
+    const { app, events, state } = global;
+    const { rooms, warnings } = readRooms(global.settings.rooms);
+    for (const warning of warnings) {
+        console.warn('[rooms]', warning);
+    }
+    if (rooms.length < 2) return;
+
+    gsplatLoad.then(
+        (entity) => {
+            if (destroyed()) return;
+
+            const overlay = createFadeOverlay(global.root);
+            const host = createRoomHost(global, viewer, overlay, rooms[0].id);
+            const manager = new RoomManager(
+                rooms,
+                firstRoomInstance(global, rooms[0].id, entity),
+                host,
+                () => state.xrMode !== null
+            );
+            state.room = rooms[0].id;
+
+            // Whether the current room has had its turn at the connection: the signal the manager
+            // waits for before it preloads the next room, so the room sharpens before the next
+            // one's download competes with it (rooms/settle-watch.ts)
+            const settle = createSettleWatch(performance.now());
+            const onFrameReady = (camera: unknown, layer: unknown, ready: boolean, loading: number) => {
+                settle.frame(ready, loading, performance.now());
+            };
+            app.systems.gsplat.on('frame:ready', onFrameReady);
+            const roomChanged = events.on('room:changed', () => settle.reset(performance.now()));
+
+            const update = () => {
+                // the camera exists once the first scene has finished loading
+                const camera = viewer.cameraManager?.camera;
+                if (!camera) return;
+                const settled = settle.settled(performance.now());
+                const { position, angles } = camera;
+                manager.update(
+                    { x: position.x, y: position.y, z: position.z, yaw: angles.y, pitch: angles.x },
+                    state.cameraMode,
+                    state.xrMode !== null,
+                    settled
+                );
+            };
+
+            // Preloading, and going through doors, wait for the first reveal: the start view can be
+            // close to a door and must not compete with the first load. The manager is exposed only
+            // then, so nothing can enter a door before it has started.
+            const firstFrame = events.once('firstFrame', () => {
+                manager.start();
+                global.rooms = manager;
+                app.on('update', update);
+
+                // a link into another room: through the first room's door to it, as a tap would
+                // go, then to its exhibit if the link names one
+                const start = startRoomDoor(
+                    global.config.room,
+                    rooms[0],
+                    rooms.map((room) => room.id)
+                );
+                if (start !== null && 'warning' in start) {
+                    console.warn('[rooms]', start.warning);
+                } else if (start !== null && 'door' in start) {
+                    const { door } = start;
+                    const target = rooms[0].doors[door].to;
+                    const arrived = events.on('room:changed', (room: string | null) => {
+                        if (room !== target) return;
+                        arrived.off();
+                        const index = startAnnotationIndex(
+                            global.config.annotation,
+                            global.settings.annotations.length
+                        );
+                        if (index !== null) viewer.selectAnnotation(index);
+                    });
+                    viewer.onDestroy(() => arrived.off());
+                    manager.enter(door).catch((): void => undefined);
+                }
+            });
+
+            viewer.onDestroy(() => {
+                firstFrame.off();
+                roomChanged.off();
+                app.systems.gsplat.off('frame:ready', onFrameReady);
+                app.off('update', update);
+                global.rooms = null;
+                manager.destroy();
+                overlay.destroy();
+            });
+        },
+        () => {
+            // the first scene failed to load or the viewer was destroyed: nothing to add doors to
+        }
+    );
+};
 
 const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle> => {
     const { container } = options;
@@ -347,7 +399,8 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
     const { app, camera, renderer } = await createApp(canvas, config);
 
     // translate the markup and get this instance's string lookup, before the ui reads any
-    const localize = initLocalization(config.lang, root);
+    addPersianFont();
+    const localize = initLocalization(config.lang, config.defaultLang, root);
 
     const state = observe<State>(events, {
         loaded: false,
@@ -371,7 +424,8 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         isFullscreen: false,
         controlsHidden: false,
         selectedAnnotation: null,
-        inputEnabled: true
+        inputEnabled: true,
+        room: null
     });
 
     const global: Global = {
@@ -383,7 +437,8 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         camera,
         renderer,
         root,
-        localize
+        localize,
+        rooms: null
     };
 
     const disposeCanvas = initCanvas(global);
@@ -405,7 +460,7 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
             state.progress = progress;
         },
         () => destroyed
-    );
+    ).then(({ entity }) => entity);
 
     // Load skybox (continue without if it fails — e.g. CORS, 404)
     const skyboxLoad =
@@ -435,26 +490,6 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         }
     }
 
-    // Load and play sound
-    let disposeAudio: (() => void) | undefined;
-    if (global.settings.soundUrl) {
-        const sound = new Audio(global.settings.soundUrl);
-        sound.crossOrigin = 'anonymous';
-        const unlock = () => {
-            if (sound) {
-                sound.play();
-            }
-        };
-        root.addEventListener('click', unlock, {
-            capture: true,
-            once: true
-        });
-        disposeAudio = () => {
-            root.removeEventListener('click', unlock, { capture: true });
-            sound.pause();
-        };
-    }
-
     // Create the viewer
     const viewer = new Viewer(global, gsplatLoad, skyboxLoad, collisionLoad);
     viewer.onDestroy(persistPreferences(events));
@@ -462,7 +497,9 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
         app,
         state,
         events,
-        annotations: global.settings.annotations,
+        get annotations() {
+            return global.settings.annotations;
+        },
         captureFrame: (captureOptions) => viewer.captureFrame(captureOptions),
         seek: (time) => viewer.seek(time),
         frameScene: () => viewer.frameScene(),
@@ -493,9 +530,9 @@ const createViewer = async (options: CreateViewerOptions): Promise<ViewerHandle>
     if (disposeUI) {
         viewer.onDestroy(disposeUI);
     }
-    if (disposeAudio) {
-        viewer.onDestroy(disposeAudio);
-    }
+    initRooms(global, viewer, gsplatLoad, () => destroyed);
+    // the room's video screens and sound, including the ambient `soundUrl` track
+    initVideoScreens(global, viewer, gsplatLoad);
 
     return handle;
 };

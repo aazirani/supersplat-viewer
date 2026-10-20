@@ -31,13 +31,37 @@ The app supports a number of URL parameters (these are subject to change):
 
 ### UI
 
-| Parameter   | Description                                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| `noui`      | Hide the UI overlay (the programmatic form is `ui: false`, which skips building it)                                 |
-| `reticle`   | Show the centre reticle in captured desktop fly/walk mode (off by default; programmatic form: `reticle: true`)      |
-| `noanim`    | Start with animation paused                                                                                         |
-| `ministats` | Show runtime CPU/GPU performance graphs                                                                             |
-| `lang`      | Override the UI language (`de`, `en`, `es`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`; default: detect from browser) |
+| Parameter    | Description                                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `noui`       | Hide the UI overlay (the programmatic form is `ui: false`, which skips building it)                                       |
+| `reticle`    | Show the centre reticle in captured desktop fly/walk mode (off by default; programmatic form: `reticle: true`)            |
+| `noanim`     | Start with animation paused                                                                                               |
+| `ministats`  | Show runtime CPU/GPU performance graphs                                                                                   |
+| `lang`       | Override the UI language (`de`, `en`, `es`, `fa`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`; default: detect from browser) |
+| `annotation` | Fly to the annotation with this number once loaded (`annotation=3` for hotspot 3), e.g. for a QR code beside an exhibit. With rooms, the first room's exhibits unless `room` names another |
+| `room` | Start in this room of a multi-room experience (`room=tunnel`): once loaded, the viewer goes through the first room's door to it, and `annotation` then counts that room's exhibits |
+
+### Site language
+
+To show every visitor the same language whatever their browser's, set `lang` in the settings block of the `index.html` you deploy, replacing its `null`:
+
+```html
+<script type="application/json" id="sse-bootstrap">
+    { "lang": "fa" }
+</script>
+```
+
+A link's `?lang=en` or `?lang=fa` still overrides it. Without it, the language follows the browser. Embedders set the same through `renderViewerHtml({ bootstrap: { lang: 'fa' } })` or `createViewer({ defaultLang: 'fa' })`.
+
+### Annotation links
+
+Annotation text may hold links, opened in a panel beside the scene: a bare `https://…` url becomes a "More info" button, and `[label](url)` links a word in a sentence. The page runs in a sandboxed frame; a page served from the viewer's own origin gets an opaque origin there, so its fonts and data files need `Access-Control-Allow-Origin: *` headers (see the [API reference](docs/api.md#controlling-annotations)). Text in Persian, Arabic or Hebrew reads right to left, in the bundled [Vazirmatn](https://github.com/rastikerdar/vazirmatn) font (SIL Open Font License, `src/fonts/Vazirmatn-OFL.txt`).
+
+### Video screens
+
+A scanned display screen can play a real video, with sound that comes from the screen and fades with distance. Add a `videos` list to `settings.json` (see the [API reference](docs/api.md#video-screens)): the video file, the four corners of the picture in the scan, and optional sound settings. The video must come from the same origin as the page or be served with CORS headers, since its frames are read into a texture and its sound into Web Audio. It plays muted until the visitor's first click, tap or key press, as browsers require; the settings panel then offers a "Sound" switch, remembered across visits, that silences the screens and the ambient `soundUrl` track. Far from a screen the video pauses, so it costs nothing while the visitor is elsewhere.
+
+To place a screen, open the debug panel (`?debug`, or Ctrl+Shift+D), press "Pick screen" and click the picture's four corners from close up and straight on, top-left first and clockwise. The fitted rectangle is written to the console and the clipboard as a `videos` entry, with its size, so a pick that landed on the case's glass or a reflection shows up as a wrong size; pick again if so, and adjust `offset` until the scan's own picture no longer shows through.
 
 ### Renderer
 

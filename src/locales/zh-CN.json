@@ -4,6 +4,7 @@
     "settings.gaming-controls": "游戏控制",
     "settings.show-annotations": "显示注释",
     "settings.show-collision": "显示碰撞",
+    "settings.sound": "声音",
     "settings.frame": "适应",
     "settings.reset": "重置",
 
@@ -74,5 +75,13 @@
     "xr-menu.exit-vr": "退出 VR",
     "xr-menu.exit-ar": "退出 AR",
     "xr-menu.ice-cream": "冰淇淋模式",
-    "xr-hint.stalled": "没有反应？切换到其他标签页再切回来。"
+    "xr-hint.stalled": "没有反应？切换到其他标签页再切回来。",
+    "door.loading": "加载中…",
+    "door.loading-percent": "加载中 {percent}",
+    "door.cancel": "点按以取消",
+    "door.unavailable": "不可用。点按以重试",
+
+    "annotation.more-info": "更多信息",
+    "link-panel.open-in-new-tab": "在新标签页中打开",
+    "link-panel.close": "关闭"
 }

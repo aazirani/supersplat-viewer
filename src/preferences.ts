@@ -4,7 +4,7 @@ import type { State } from './types';
 
 type Preferences = Pick<
     State,
-    'performanceMode' | 'gamingControls' | 'showAnnotations' | 'lookNavigation' | 'iceCream'
+    'performanceMode' | 'gamingControls' | 'showAnnotations' | 'lookNavigation' | 'iceCream' | 'muted'
 >;
 
 const readPreferences = (mobile: boolean): Preferences => {
@@ -13,7 +13,8 @@ const readPreferences = (mobile: boolean): Preferences => {
         gamingControls: false,
         showAnnotations: true,
         lookNavigation: false,
-        iceCream: false
+        iceCream: false,
+        muted: false
     };
     try {
         // Preserve the legacy preference migration and origin-wide keys.
@@ -33,7 +34,8 @@ const readPreferences = (mobile: boolean): Preferences => {
             gamingControls: localStorage.getItem('gamingControls') === 'true',
             showAnnotations: localStorage.getItem('showAnnotations') !== 'false',
             lookNavigation: localStorage.getItem('lookNavigation') === 'true',
-            iceCream: localStorage.getItem('iceCream') === 'true'
+            iceCream: localStorage.getItem('iceCream') === 'true',
+            muted: localStorage.getItem('muted') === 'true'
         };
     } catch {
         // Embedded documents can be denied storage. Preferences must not prevent viewing.
@@ -44,7 +46,7 @@ const readPreferences = (mobile: boolean): Preferences => {
 const persistPreferences = (events: EventHandler) => {
     // Write changes only, so creating a viewer does not persist platform defaults.
     const subscriptions = (
-        ['performanceMode', 'gamingControls', 'showAnnotations', 'lookNavigation', 'iceCream'] as const
+        ['performanceMode', 'gamingControls', 'showAnnotations', 'lookNavigation', 'iceCream', 'muted'] as const
     ).map((key) =>
         events.on(`${key}:changed`, (value: boolean) => {
             try {

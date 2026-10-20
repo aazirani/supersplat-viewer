@@ -4,6 +4,7 @@
     "settings.gaming-controls": "Gaming Controls",
     "settings.show-annotations": "Show Annotations",
     "settings.show-collision": "Show Collision",
+    "settings.sound": "Sound",
     "settings.frame": "Frame",
     "settings.reset": "Reset",
 
@@ -74,5 +75,13 @@
     "xr-menu.exit-vr": "Exit VR",
     "xr-menu.exit-ar": "Exit AR",
     "xr-menu.ice-cream": "Ice-cream mode",
-    "xr-hint.stalled": "Nothing happening? Switch tabs and back."
+    "xr-hint.stalled": "Nothing happening? Switch tabs and back.",
+    "door.loading": "Loading…",
+    "door.loading-percent": "Loading {percent}",
+    "door.cancel": "Tap to cancel",
+    "door.unavailable": "Unavailable. Tap to retry",
+
+    "annotation.more-info": "More info",
+    "link-panel.open-in-new-tab": "Open in new tab",
+    "link-panel.close": "Close"
 }

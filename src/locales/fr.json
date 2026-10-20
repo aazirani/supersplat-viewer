@@ -4,6 +4,7 @@
     "settings.gaming-controls": "Commandes de jeu",
     "settings.show-annotations": "Afficher les annotations",
     "settings.show-collision": "Afficher les collisions",
+    "settings.sound": "Son",
     "settings.frame": "Cadrer",
     "settings.reset": "Réinitialiser",
 
@@ -74,5 +75,13 @@
     "xr-menu.exit-vr": "Quitter la VR",
     "xr-menu.exit-ar": "Quitter l'AR",
     "xr-menu.ice-cream": "Mode glace",
-    "xr-hint.stalled": "Rien ne se passe ? Changez d'onglet puis revenez."
+    "xr-hint.stalled": "Rien ne se passe ? Changez d'onglet puis revenez.",
+    "door.loading": "Chargement…",
+    "door.loading-percent": "Chargement {percent}",
+    "door.cancel": "Touchez pour annuler",
+    "door.unavailable": "Indisponible. Touchez pour réessayer",
+
+    "annotation.more-info": "En savoir plus",
+    "link-panel.open-in-new-tab": "Ouvrir dans un nouvel onglet",
+    "link-panel.close": "Fermer"
 }

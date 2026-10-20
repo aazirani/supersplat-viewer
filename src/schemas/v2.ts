@@ -1,3 +1,6 @@
+import { readRooms } from '../rooms/rooms-settings';
+import { readVideos } from '../video/videos-settings';
+
 import {
     assertObject,
     assertNumber,
@@ -99,6 +102,11 @@ type ExperienceSettings = {
     animTracks: AnimTrack[];
     cameras: Camera[];
     annotations: Annotation[];
+
+    // Raw rooms (doors between scenes). The viewer reads them through `readRooms`.
+    rooms?: unknown[];
+    // Raw videos (played on screens in the scan). The viewer reads them through `readVideos`.
+    videos?: unknown[];
 
     startMode: 'default' | 'animTrack' | 'annotation';
 };
@@ -205,6 +213,20 @@ const validateV2 = (data: unknown): ExperienceSettings => {
     annotations.forEach((a: unknown, i: number) => validateAnnotation(a, `settings.annotations[${i}]`));
 
     assertEnum(obj.startMode, START_MODES, 'settings.startMode');
+
+    if (obj.rooms !== undefined) {
+        const { warnings } = readRooms(obj.rooms);
+        if (warnings.length > 0) {
+            throw new Error(warnings[0]);
+        }
+    }
+
+    if (obj.videos !== undefined) {
+        const { warnings } = readVideos(obj.videos);
+        if (warnings.length > 0) {
+            throw new Error(warnings[0]);
+        }
+    }
 
     return data as ExperienceSettings;
 };

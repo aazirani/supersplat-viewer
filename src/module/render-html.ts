@@ -21,6 +21,11 @@ type ViewerBootstrap = Partial<ViewerAssets> & {
     settings?: unknown;
     /** Where to fetch settings from. Defaults to `./settings.json`. */
     settingsUrl?: string;
+    /**
+     * The ui language for every visitor, such as `fa`, whatever their browser's; a link's
+     * `?lang=` still overrides it. Defaults to the browser's.
+     */
+    lang?: string;
 };
 
 /** Options for {@link renderViewerHtml}. */

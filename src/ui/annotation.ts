@@ -1,15 +1,52 @@
 import { Script, Vec3 } from 'playcanvas';
 import type { Entity } from 'playcanvas';
 
+import { parseAnnotationText, textDirection } from './annotation-links';
+import { distanceFade } from './hotspot-fade';
+import type { LinkPanel } from './link-panel';
+
 const vec = new Vec3();
+
+// a hotspot shows fully up to this distance from the camera, in scene units, and is gone from
+// the far one on: a room's nearer exhibits show, the far side's wait until the visitor nears
+const FADE_NEAR = 4;
+const FADE_FAR = 12;
+
+// one ripple's spread from the hotspot, and the pause before the next
+const RIPPLE_MS = 2600;
+
+// more characters than this, and the tooltip widens for the text
+const LONG_TEXT = 280;
+
+/**
+ * A link in the tooltip. A plain click opens it in the link panel; a click with a modifier, or
+ * the middle button, does what the browser does with a link, a new tab.
+ *
+ * @param anchor - The link element.
+ * @param url - Where it points.
+ * @param title - The panel's title for its page.
+ * @param ctx - The annotations' shared state, for the panel.
+ */
+const linkTo = (anchor: HTMLAnchorElement, url: string, title: string, ctx: AnnotationContext) => {
+    anchor.href = url;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.onclick = (event) => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        ctx.linkPanel.open(url, title);
+    };
+};
 
 /**
  * A script for creating interactive 3D annotations in a scene. Each annotation consists of:
  *
- * - A hotspot: a dom circle with the annotation's number, kept over the annotation's position.
+ * - A hotspot: a dom point with a ring rippling out from it, kept over the annotation's
+ * position and fading with distance from the camera so only the nearer ones show.
  * `Annotations` tests it against the scene and marks it occluded, which fades it rather than
  * letting the scene cover it pixel by pixel. It stays clickable either way.
- * - An annotation panel that shows title and description text, shared by every annotation.
+ * - An annotation panel that shows title and description text, shared by every annotation. Links
+ * in the text open in the link panel; the first bare url becomes a "More info" button.
  *
  * Styles live in `index.scss`, under `.sse-annotations`.
  */
@@ -43,6 +80,13 @@ export class Annotation extends Script {
     hotspotDom: HTMLDivElement | null = null;
 
     /**
+     * The hotspot's distance fade as last written to its style, so a still hotspot is not
+     * restyled every frame.
+     * @private
+     */
+    fade = 1;
+
+    /**
      * The hotspot's position in canvas pixels, its distance from the camera and its depth
      * along the view, as of the last update; null while it is behind the camera. Read by the
      * occlusion test.
@@ -64,13 +108,47 @@ export class Annotation extends Script {
         // dimmed until the occlusion test first shows it in view, rather than every hotspot
         // showing at full strength on the reveal and the hidden ones fading afterwards
         this.hotspotDom.className = 'sse-annotation-hotspot sse-occluded';
-        this.hotspotDom.textContent = this.label;
+        // a dot, not a number: its name is for assistive technology
+        this.hotspotDom.setAttribute('role', 'button');
+        this.hotspotDom.setAttribute('aria-label', this.title || this.label);
+
+        // a ring spreading out from the point now and then, so it reads as something to touch.
+        // Played here rather than by a css animation, whose @keyframes name would be global;
+        // each starts at its own point in the cycle, so the scene does not pulse in step
+        const ripple = document.createElement('span');
+        ripple.className = 'sse-annotation-ripple';
+        this.hotspotDom.appendChild(ripple);
+        if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+            ripple.animate(
+                [
+                    { transform: 'scale(0.35)', opacity: 0.9 },
+                    { transform: 'scale(1)', opacity: 0, offset: 0.7 },
+                    { transform: 'scale(1)', opacity: 0 }
+                ],
+                {
+                    duration: RIPPLE_MS,
+                    delay: -Math.random() * RIPPLE_MS,
+                    easing: 'ease-out',
+                    iterations: Infinity
+                }
+            );
+        }
 
         const onClick = (e: MouseEvent) => {
             e.stopPropagation();
             this.fire('select');
         };
         this.hotspotDom.addEventListener('click', onClick);
+
+        // reachable by keyboard, like the button it says it is; far ones leave the tab order
+        this.hotspotDom.tabIndex = 0;
+        this.hotspotDom.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.fire('select');
+            }
+        });
 
         ctx.hotspotsDom.appendChild(this.hotspotDom);
 
@@ -149,12 +227,56 @@ export class Annotation extends Script {
             // beside its hotspot; and with no side yet, rather than the one it left it on
             ctx.tooltipOwner = this;
             ctx.titleDom.textContent = this.title;
-            ctx.textDom.textContent = this.text;
+            this._renderText();
             ctx.tooltipDom.classList.remove('sse-arrow-left', 'sse-arrow-right');
         }
 
         // the camera may be still, so no prerender may follow
         this._update();
+    }
+
+    /**
+     * The page this annotation's "More info" button opens, and the link panel's title for it;
+     * null when its text has no bare url.
+     * @private
+     */
+    moreInfo(): { url: string; title: string } | null {
+        const { moreInfoUrl } = parseAnnotationText(this.text);
+        return moreInfoUrl === null ? null : { url: moreInfoUrl, title: this.title || this.context.moreInfoLabel };
+    }
+
+    /**
+     * Fill the tooltip's text and "More info" button from this annotation's text. Built from
+     * text nodes and links, never parsed as html: the text is user-authored.
+     * @private
+     */
+    _renderText() {
+        const ctx = this.context;
+        const { segments } = parseAnnotationText(this.text);
+
+        // the tooltip runs in the annotation's direction, so in a Persian one the "More info"
+        // button sits under the start of the text, on the right, and points left
+        ctx.tooltipDom.dir = textDirection(`${this.title} ${this.text}`);
+        ctx.tooltipDom.classList.toggle('sse-long', this.text.length > LONG_TEXT);
+
+        ctx.textDom.replaceChildren(
+            ...segments.map((segment) => {
+                if (segment.type === 'text') return document.createTextNode(segment.text);
+                const anchor = document.createElement('a');
+                anchor.className = 'sse-annotation-link';
+                anchor.textContent = segment.text;
+                linkTo(anchor, segment.url, segment.text, ctx);
+                return anchor;
+            })
+        );
+        // a long text scrolls; each annotation's starts at its top
+        ctx.textDom.scrollTop = 0;
+
+        const moreInfo = this.moreInfo();
+        ctx.moreInfoDom.classList.toggle('sse-hidden', moreInfo === null);
+        if (moreInfo) {
+            linkTo(ctx.moreInfoDom, moreInfo.url, moreInfo.title, ctx);
+        }
     }
 
     /**
@@ -193,6 +315,15 @@ export class Annotation extends Script {
         // nearer hotspots draw over farther ones
         hotspot.style.zIndex = String(Math.round(100000 / (1 + distance)));
 
+        // farther ones fade, and the farthest go, so a room's far side does not crowd the view
+        const fade = Math.round(distanceFade(distance, FADE_NEAR, FADE_FAR) * 100) / 100;
+        if (fade !== this.fade) {
+            this.fade = fade;
+            hotspot.style.setProperty('--sse-hotspot-fade', String(fade));
+            hotspot.classList.toggle('sse-far', fade === 0);
+            hotspot.tabIndex = fade === 0 ? -1 : 0;
+        }
+
         const ctx = this.context;
         if (ctx.tooltipOwner !== this) {
             return;
@@ -203,8 +334,10 @@ export class Annotation extends Script {
         // out, moving with the hotspot at the offset it last had rather than standing still while
         // the camera moves on
         const tooltip = ctx.tooltipDom;
-        const vw = ctx.canvas.clientWidth;
-        const vh = ctx.canvas.clientHeight;
+        // the link panel's side, or its sheet's height on a narrow viewer, counts as beyond the
+        // canvas, so the tooltip is not beneath it
+        const vw = ctx.canvas.clientWidth - ctx.linkPanel.coveredRight();
+        const vh = ctx.canvas.clientHeight - ctx.linkPanel.coveredBottom();
         const onCanvas = screenPos.x >= 0 && screenPos.x <= vw && screenPos.y >= 0 && screenPos.y <= vh;
         if (ctx.activeAnnotation !== this || !ctx.revealed) {
             tooltip.classList.remove('sse-visible');
@@ -223,6 +356,13 @@ export class Annotation extends Script {
         const tw = tooltip.offsetWidth;
         const th = tooltip.offsetHeight;
 
+        // a sheet that leaves less room than the tooltip needs hides it rather than half of it:
+        // the page is open, and the tooltip comes back when the sheet closes
+        if (ctx.linkPanel.coveredBottom() > 0 && th > vh - 2 * margin) {
+            tooltip.classList.remove('sse-visible');
+            return;
+        }
+
         // Beside the hotspot, vertically centered, on the side it is already on: changing sides
         // jumps it across the hotspot, so it does only when it no longer fits there and does on
         // the other side. With no side yet, the right unless that overflows
@@ -240,6 +380,18 @@ export class Annotation extends Script {
 
         // Clamp vertical
         top = Math.max(margin, Math.min(top, vh - th - margin));
+
+        // Clear of the ui's corner panels (the controls hint, the settings), which draw over the
+        // tooltip and would hide its button: above one if there is room, else beside it
+        for (const panel of ctx.panels()) {
+            const overlaps = left < panel.right && left + tw > panel.left && top < panel.bottom && top + th > panel.top;
+            if (!overlaps) continue;
+            if (panel.top - margin - th >= margin) {
+                top = panel.top - margin - th;
+            } else if (panel.left - margin - tw >= margin) {
+                left = panel.left - margin - tw;
+            }
+        }
 
         // Position arrow to point at the hotspot, clamped within the tooltip
         const arrowY = Math.max(16, Math.min(screenPos.y - top, th - 16));
@@ -275,6 +427,22 @@ class AnnotationContext {
 
     textDom: HTMLDivElement;
 
+    // the button the text's first bare url becomes, hidden when there is none
+    moreInfoDom: HTMLAnchorElement;
+
+    moreInfoLabel: string;
+
+    // the tooltip's close button, top corner at the end of the title
+    closeDom: HTMLButtonElement;
+
+    // called by the close button: the owner deselects the annotation, which hides the tooltip
+    onClose: (() => void) | null = null;
+
+    linkPanel: LinkPanel;
+
+    // the ui panels showing over the scene, in canvas pixels, for the tooltip to keep clear of
+    panels: () => { left: number; top: number; right: number; bottom: number }[] = () => [];
+
     activeAnnotation: Annotation | null = null;
 
     // whether the active annotation's tooltip has been revealed: it hides for each camera
@@ -289,27 +457,69 @@ class AnnotationContext {
 
     tooltipOffset: { x: number; y: number } | null = null;
 
-    constructor(canvas: HTMLCanvasElement, camera: Entity, parentDom: HTMLElement) {
+    constructor(
+        canvas: HTMLCanvasElement,
+        camera: Entity,
+        parentDom: HTMLElement,
+        linkPanel: LinkPanel,
+        moreInfoLabel: string,
+        closeLabel: string
+    ) {
         this.parentDom = parentDom;
         this.canvas = canvas;
         this.camera = camera;
+        this.linkPanel = linkPanel;
+        this.moreInfoLabel = moreInfoLabel;
 
         this.hotspotsDom = document.createElement('div');
         this.hotspotsDom.className = 'sse-annotation-hotspots';
         parentDom.appendChild(this.hotspotsDom);
 
-        // the tooltip: the title, then the text. No number: the selected hotspot beside it
-        // already shows it
+        // the tooltip: a close button, the title, the text, then the "More info" button. No
+        // number: the selected hotspot beside it already shows it
         this.tooltipDom = document.createElement('div');
         this.tooltipDom.className = 'sse-annotation';
+        // its links are pressed and clicked, which the scene beneath must not take for a press
+        // on itself: a click there deselects the annotation
+        for (const type of ['pointerdown', 'click']) {
+            this.tooltipDom.addEventListener(type, (event) => event.stopPropagation());
+        }
+        // the wheel over text too long to fit scrolls it, rather than reaching the scene layer,
+        // which passes the wheel on to the camera
+        this.tooltipDom.addEventListener('wheel', (event) => {
+            const text = this.textDom;
+            if (text.contains(event.target as Node) && text.scrollHeight > text.clientHeight) {
+                event.stopPropagation();
+            }
+        });
 
+        // each reads in the direction of its own language, so a Persian or Arabic annotation
+        // reads right to left whatever the ui's language
         this.titleDom = document.createElement('div');
         this.titleDom.className = 'sse-annotation-title';
+        this.titleDom.dir = 'auto';
 
         this.textDom = document.createElement('div');
         this.textDom.className = 'sse-annotation-text';
+        this.textDom.dir = 'auto';
 
-        this.tooltipDom.append(this.titleDom, this.textDom);
+        this.moreInfoDom = document.createElement('a');
+        this.moreInfoDom.className = 'sse-annotation-more sse-hidden';
+        this.moreInfoDom.textContent = moreInfoLabel;
+
+        this.closeDom = document.createElement('button');
+        this.closeDom.className = 'sse-annotation-close sse-panelButton';
+        this.closeDom.type = 'button';
+        this.closeDom.title = closeLabel;
+        this.closeDom.setAttribute('aria-label', closeLabel);
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#closeIcon');
+        icon.appendChild(use);
+        this.closeDom.appendChild(icon);
+        this.closeDom.addEventListener('click', () => this.onClose?.());
+
+        this.tooltipDom.append(this.closeDom, this.titleDom, this.textDom, this.moreInfoDom);
         parentDom.appendChild(this.tooltipDom);
     }
 }

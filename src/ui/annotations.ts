@@ -2,13 +2,19 @@ import { Entity, Mat4 } from 'playcanvas';
 import type { CameraComponent, EventHandle, ScriptComponent } from 'playcanvas';
 
 import { TAP_EPSILON } from '../input/shared';
+import type { Localize } from '../localization';
 import type { ScenePicker } from '../picker';
 import type { ViewerHandle } from '../types';
 
 import { Annotation, AnnotationContext } from './annotation';
+import type { LinkPanel } from './link-panel';
+import { OcclusionSchedule } from './occlusion-schedule';
 
 // how long the camera must be still before the hotspots are tested against the scene
 const SETTLE_MS = 150;
+
+// how often a camera that moves by itself, as the idle tour does, is tested as it goes
+const MOVING_TEST_MS = 1000;
 
 // the scene in front of a hotspot must be at least this opaque to hide it, so haze does not
 const OCCLUDING_OPACITY = 0.5;
@@ -38,12 +44,16 @@ class Annotations {
 
     private removeOcclusion: () => void;
 
+    private removePanelObserver: () => void;
+
     constructor(
         viewer: Pick<ViewerHandle, 'app' | 'state' | 'events' | 'annotations' | 'selectAnnotation'>,
         root: HTMLElement,
         camera: Entity,
         getPicker: () => ScenePicker | undefined,
-        getCameraProgress: () => number
+        getCameraProgress: () => number,
+        linkPanel: LinkPanel,
+        localize: Localize
     ) {
         const { app, state, events, annotations } = viewer;
         const parentDom = document.createElement('div');
@@ -53,7 +63,41 @@ class Annotations {
         this.parentDom = parentDom;
 
         const canvas = app.graphicsDevice.canvas as HTMLCanvasElement;
-        const context = new AnnotationContext(canvas, camera, parentDom);
+        const context = new AnnotationContext(
+            canvas,
+            camera,
+            parentDom,
+            linkPanel,
+            localize('annotation.more-info'),
+            localize('link-panel.close')
+        );
+        // the tooltip's close button deselects, as a click on the scene does
+        context.onClose = () => viewer.selectAnnotation(null);
+
+        // The corner panels the tooltip keeps clear of, and a redraw when one opens or closes,
+        // since a still camera would not move the tooltip otherwise
+        const cornerPanels = ['.sse-controlsHint', '.sse-settingsPanel']
+            .map((selector) => root.querySelector<HTMLElement>(selector))
+            .filter((element) => element !== null);
+        context.panels = () => {
+            const origin = canvas.getBoundingClientRect();
+            return cornerPanels
+                .map((element) => element.getBoundingClientRect())
+                .filter((rect) => rect.width > 0 && rect.height > 0)
+                .map((rect) => ({
+                    left: rect.left - origin.left,
+                    top: rect.top - origin.top,
+                    right: rect.right - origin.left,
+                    bottom: rect.bottom - origin.top
+                }));
+        };
+        const panelObserver = new MutationObserver(() => {
+            app.renderNextFrame = true;
+        });
+        for (const element of cornerPanels) {
+            panelObserver.observe(element, { attributes: true, attributeFilter: ['class'] });
+        }
+        this.removePanelObserver = () => panelObserver.disconnect();
 
         const parent = new Entity('annotations', app);
         app.root.addChild(parent);
@@ -79,18 +123,18 @@ class Annotations {
 
         // Occlusion: a hotspot is either in front of the scene or behind it, never partly
         // covered. Once the camera has been still for a moment, pick the scene at every hotspot
-        // on screen and fade the ones it covers; while the camera moves they keep their state.
-        // One pick pass per stop, not per frame.
+        // on screen and fade the ones it covers; while the visitor moves they keep their state.
+        // One pick pass per stop, not per frame, and about one a second while an animation plays
         let destroyed = false;
-        let settleTimer: ReturnType<typeof setTimeout> | null = null;
         // bumped on every camera move, so a test that resolves after the camera moved again is
         // discarded rather than applied to a pose it was not taken from
         let pose = 0;
         const lastWorld = new Mat4();
         const lastProjection = new Mat4();
 
-        const testOcclusion = async () => {
-            settleTimer = null;
+        // `moving`: a test taken while an animation plays, whose camera has moved on a little by
+        // the time it finishes. Its result stands: the camera never stops for a test to wait for
+        const testOcclusion = async (moving: boolean) => {
             const picker = getPicker();
             if (destroyed || !picker || parentDom.style.display === 'none') return;
 
@@ -117,17 +161,20 @@ class Annotations {
                 // the next camera stop or content change tests again
                 return;
             }
-            if (destroyed || testedPose !== pose) return;
+            if (destroyed || (!moving && testedPose !== pose)) return;
 
             targets.forEach((script, i) => {
                 script.setOccluded((opacities[i] ?? 0) >= OCCLUDING_OPACITY);
             });
         };
 
-        const scheduleOcclusion = () => {
-            if (settleTimer) clearTimeout(settleTimer);
-            settleTimer = setTimeout(testOcclusion, SETTLE_MS);
-        };
+        const schedule = new OcclusionSchedule(
+            (moving) => {
+                testOcclusion(moving);
+            },
+            SETTLE_MS,
+            MOVING_TEST_MS
+        );
 
         // A new camera transition (a reset, say): the tooltip hides until it nearly ends, as on
         // the move to an annotation. Checked after the camera update but before the frame
@@ -169,7 +216,7 @@ class Annotations {
             lastWorld.copy(world);
             lastProjection.copy(projectionMatrix);
             pose++;
-            scheduleOcclusion();
+            schedule.moved(state.cameraMode === 'anim');
         };
         app.on('frameend', onFrameEnd);
 
@@ -183,7 +230,7 @@ class Annotations {
             if (frameCamera !== camera.camera) return;
             if (ready && !contentReady) {
                 pose++;
-                scheduleOcclusion();
+                schedule.settle();
             }
             contentReady = ready;
         };
@@ -191,7 +238,7 @@ class Annotations {
 
         this.removeOcclusion = () => {
             destroyed = true;
-            if (settleTimer) clearTimeout(settleTimer);
+            schedule.cancel();
             app.off('framerender', onFrameRender);
             app.off('frameend', onFrameEnd);
             gsplatSystem.off('frame:ready', onFrameReady);
@@ -204,11 +251,23 @@ class Annotations {
             const wasHidden = parentDom.style.display === 'none';
             parentDom.style.display = hidden ? 'none' : 'block';
             // hotspots coming back may have been covered or uncovered while hidden
-            if (wasHidden && !hidden) scheduleOcclusion();
+            if (wasHidden && !hidden) schedule.settle();
             const selected = hidden || state.selectedAnnotation === null ? null : scripts[state.selectedAnnotation];
             if (selected !== context.activeAnnotation) {
                 context.activeAnnotation?.hideTooltip();
                 selected?.showTooltip();
+
+                // An open link panel follows the selection, so a visitor reading their way round
+                // the exhibits keeps reading: the next exhibit's page loads while the camera flies
+                // there. One with no page, or no selection, closes it
+                if (linkPanel.isOpen()) {
+                    const moreInfo = selected?.moreInfo();
+                    if (moreInfo) {
+                        linkPanel.open(moreInfo.url, moreInfo.title);
+                    } else {
+                        linkPanel.close();
+                    }
+                }
             }
             app.renderNextFrame = true;
         };
@@ -218,7 +277,14 @@ class Annotations {
             events.on('controlsHidden:changed', update),
             events.on('showAnnotations:changed', update),
             events.on('cameraMode:changed', update),
-            events.on('gamingControls:changed', update)
+            events.on('gamingControls:changed', update),
+            // Escape closes the tooltip, as its close button does. An open link panel takes the
+            // Escape first, so the first press closes the page and the next the tooltip
+            events.on('inputEvent', (name: string) => {
+                if ((name === 'cancel' || name === 'exitWalk') && context.activeAnnotation) {
+                    viewer.selectAnnotation(null);
+                }
+            })
         ];
         update();
 
@@ -232,10 +298,13 @@ class Annotations {
         const onPointerMove = (event: PointerEvent) => {
             if (event.buttons) pressMovement += Math.abs(event.movementX) + Math.abs(event.movementY);
         };
-        const onClick = () => {
+        const onClick = (event: MouseEvent) => {
             // consumed, so a later click from the keyboard is not taken for the drag
             const dragged = pressMovement >= TAP_EPSILON;
             pressMovement = 0;
+            // only a click on the scene itself: one on the ui (closing the controls hint, a
+            // toolbar button) is not a step away from the annotation
+            if (event.target !== canvas) return;
             if (!dragged && state.loaded && state.selectedAnnotation !== null) viewer.selectAnnotation(null);
         };
         root.addEventListener('pointerdown', onPointerDown);
@@ -252,6 +321,7 @@ class Annotations {
         for (const subscription of this.subscriptions) subscription.off();
         this.removeClick();
         this.removeOcclusion();
+        this.removePanelObserver();
         this.parent.destroy();
         this.parentDom.remove();
     }

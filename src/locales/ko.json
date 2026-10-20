@@ -4,6 +4,7 @@
     "settings.gaming-controls": "게임 컨트롤",
     "settings.show-annotations": "주석 표시",
     "settings.show-collision": "충돌 표시",
+    "settings.sound": "소리",
     "settings.frame": "맞춤",
     "settings.reset": "재설정",
 
@@ -74,5 +75,13 @@
     "xr-menu.exit-vr": "VR 종료",
     "xr-menu.exit-ar": "AR 종료",
     "xr-menu.ice-cream": "아이스크림 모드",
-    "xr-hint.stalled": "반응이 없나요? 다른 탭으로 전환했다가 돌아오세요."
+    "xr-hint.stalled": "반응이 없나요? 다른 탭으로 전환했다가 돌아오세요.",
+    "door.loading": "로드 중…",
+    "door.loading-percent": "로드 중 {percent}",
+    "door.cancel": "탭하여 취소",
+    "door.unavailable": "사용할 수 없음. 탭하여 다시 시도",
+
+    "annotation.more-info": "자세히 보기",
+    "link-panel.open-in-new-tab": "새 탭에서 열기",
+    "link-panel.close": "닫기"
 }
