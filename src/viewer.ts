@@ -42,6 +42,7 @@ import { Picker } from './picker';
 import type { ScenePicker } from './picker';
 import { FrameDepthPicker } from './picker-frame-depth';
 import { StochasticSplatRenderer } from './render/stochastic-splat-renderer';
+import { readRooms } from './rooms/rooms-settings';
 import type { ArrivalPose } from './rooms/rooms-settings';
 import type { ExperienceSettings, PostEffectSettings } from './settings';
 import { startAnnotationIndex } from './start-annotation';
@@ -469,7 +470,7 @@ class Viewer {
             state.loaded = true;
 
             // a link to one exhibit flies there now the scene is in view
-            const start = startAnnotationIndex(config.annotation, settings.annotations.length);
+            const start = startAnnotationIndex(config.annotation, this.global.settings.annotations.length);
             if (start !== null) this.selectAnnotation(start);
 
             // the window.* hooks below are the standalone document's api for the thumbnail
@@ -654,7 +655,10 @@ class Viewer {
             // detection and the voxel/mesh debug overlay availability).
             // walkAllowed = walk mode is offered to the user; requires both
             // collision data and a scene large enough to walk around in.
-            attachCollision = (collision: Collision) => {
+            // The collision wired to the controllers, and the overlay it already has (the debug
+            // overlays are built once, on the first attach)
+            let overlayAvailable = false;
+            const applyCollision = (collision: Collision) => {
                 this.inputController.collision = collision;
                 this.cameraManager.setCollision(collision);
                 this.xr.setCollision(collision);
@@ -663,7 +667,13 @@ class Viewer {
                 }
 
                 state.hasCollision = true;
+                state.hasCollisionOverlay = overlayAvailable;
                 state.walkAllowed = isWalkAllowed(sceneBound, collision);
+                app.renderNextFrame = true;
+            };
+
+            attachCollision = (collision: Collision) => {
+                applyCollision(collision);
 
                 // Create collision debug overlay (voxel uses a compute shader, mesh
                 // uses standard line rendering). The voxel path requires WebGPU.
@@ -685,10 +695,12 @@ class Viewer {
                     };
                     events.on('collisionOverlayEnabled:changed', setOverlayEnabled);
                     events.on('xrMode:changed', setOverlayEnabled);
+                    overlayAvailable = true;
                     state.hasCollisionOverlay = true;
                     setOverlayEnabled();
                 } else if (collision instanceof MeshCollision) {
                     this.meshOverlay = new MeshDebugOverlay(app, collision, camera, !!this.cameraFrame);
+                    overlayAvailable = true;
                     state.hasCollisionOverlay = true;
 
                     events.on('collisionOverlayEnabled:changed', (value: boolean) => {
@@ -735,7 +747,8 @@ class Viewer {
 
             // Room changes swap in another room's entity and settings. The room's own collision
             // is not loaded, so any attached collision is cleared: the room flies until it has
-            // some.
+            // some. The page's collision belongs to the first room, and comes back with it.
+            const firstRoomId = readRooms(global.settings.rooms).rooms[0]?.id ?? null;
             this.setRoom = ({ id, entity, settings: roomSettings }, arrival) => {
                 global.settings = roomSettings;
                 this.activeGsplat = entity;
@@ -748,9 +761,9 @@ class Viewer {
                 this.configureCamera(roomSettings);
                 this.xr.setGrabTarget(entity, isWalkableSize(sceneBound));
 
-                // the first room's collision, if still loading, belongs to that room: drop it
+                // the first room's collision, if still loading, belongs to that room: it is kept
+                // for a return there, not attached to this one
                 attachCollision = undefined;
-                collisionReady = null;
 
                 if (state.hasCollision) {
                     this.inputController.collision = null;
@@ -764,6 +777,7 @@ class Viewer {
                     state.collisionOverlayEnabled = false;
                     state.walkAllowed = false;
                 }
+                if (id === firstRoomId && collisionReady) applyCollision(collisionReady);
 
                 state.selectedAnnotation = null;
                 // held movement would carry the camera out of the arrival pose, maybe into a door

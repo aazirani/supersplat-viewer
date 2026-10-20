@@ -270,7 +270,12 @@ const initRooms = (global: Global, viewer: Viewer, gsplatLoad: Promise<Entity>, 
 
             const overlay = createFadeOverlay(global.root);
             const host = createRoomHost(global, viewer, overlay, rooms[0].id);
-            const manager = new RoomManager(rooms, firstRoomInstance(global, rooms[0].id, entity), host);
+            const manager = new RoomManager(
+                rooms,
+                firstRoomInstance(global, rooms[0].id, entity),
+                host,
+                () => state.xrMode !== null
+            );
             state.room = rooms[0].id;
 
             // Whether the current room has had its turn at the connection: the signal the manager

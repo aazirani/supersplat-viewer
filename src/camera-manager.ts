@@ -241,6 +241,8 @@ class CameraManager {
             controllers.anim = roomTrack ? new AnimController(roomTrack) : null;
             state.hasAnimation = !!controllers.anim;
             state.animationDuration = controllers.anim ? controllers.anim.animState.cursor.duration : 0;
+            // the new room's tour starts from its beginning
+            state.animationTime = 0;
 
             // arrive through the door, at the room's own fov
             this.camera.look(new Vec3(arrival.position), new Vec3(arrival.target));

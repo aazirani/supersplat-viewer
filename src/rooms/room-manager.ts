@@ -12,7 +12,8 @@ import type { ArrivalPose, RoomDef } from './rooms-settings.ts';
 
 type RoomHost<R> = {
     // creates the room parked and hidden
-    load(room: RoomDef): Promise<R>;
+    // `signal` aborts when the room is no longer wanted (replaced in the slot, or destroyed)
+    load(room: RoomDef, signal: AbortSignal): Promise<R>;
     // resolves when the parked level is resident; rejects when it stops loading
     whenReady(instance: R): Promise<void>;
     // how much of the parked level has arrived, 0 to 1, while whenReady is pending
@@ -36,7 +37,7 @@ type DoorState = {
 
 // The one background room. `instance` is set once `promise` resolves while this is still the
 // slot, and `ready` once its parked level is resident.
-type Parked<R> = { id: string; promise: Promise<R>; instance?: R; ready: boolean };
+type Parked<R> = { id: string; promise: Promise<R>; instance?: R; ready: boolean; abort: AbortController };
 
 type Pending = { door: number; by: 'walk' | 'tap' };
 
@@ -75,12 +76,16 @@ class RoomManager<R> {
 
     private destroyed = false;
 
-    constructor(rooms: RoomDef[], first: R, host: RoomHost<R>) {
+    // whether an immersive session is on: doors pause in XR, taps included
+    private xrActive: () => boolean;
+
+    constructor(rooms: RoomDef[], first: R, host: RoomHost<R>, xrActive: () => boolean = () => false) {
         this.rooms = new Map(rooms.map((room) => [room.id, room]));
         this.host = host;
         this.room = rooms[0];
         this.instance = first;
         this.armed = this.room.doors.map(() => false);
+        this.xrActive = xrActive;
     }
 
     get current(): RoomDef {
@@ -170,7 +175,7 @@ class RoomManager<R> {
     // The host's failures are reported through host.warn and never thrown.
     async enter(doorIndex: number): Promise<void> {
         const door = this.room.doors[doorIndex];
-        if (this.entering || this.destroyed || !door || !this.rooms.has(door.to)) return;
+        if (this.entering || this.destroyed || this.xrActive() || !door || !this.rooms.has(door.to)) return;
 
         if (this.pending?.door === doorIndex && this.pending.by === 'tap') {
             this.pending = null;
@@ -185,6 +190,7 @@ class RoomManager<R> {
         this.pending = null;
         const parked = this.parked;
         this.parked = null;
+        parked?.abort.abort();
         if (parked?.instance !== undefined) this.host.release(parked.instance);
     }
 
@@ -272,10 +278,13 @@ class RoomManager<R> {
     // its parked level to become resident.
     private park(id: string): Parked<R> {
         const previous = this.parked;
+        // a load still in flight stops downloading, so it does not compete with the new one
+        previous?.abort.abort();
         if (previous?.instance !== undefined) this.host.release(previous.instance);
 
         const room = this.rooms.get(id) as RoomDef;
-        const parked: Parked<R> = { id, promise: this.host.load(room), ready: false };
+        const abort = new AbortController();
+        const parked: Parked<R> = { id, promise: this.host.load(room, abort.signal), ready: false, abort };
         this.parked = parked;
 
         const fail = (err: unknown) => {

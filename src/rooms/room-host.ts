@@ -127,7 +127,7 @@ const createRoomHost = (
     };
 
     return {
-        async load(room: RoomDef): Promise<RoomInstance> {
+        async load(room: RoomDef, signal: AbortSignal): Promise<RoomInstance> {
             const { config } = global;
             const first = isFirst(room);
             if (!first && !room.contentUrl) {
@@ -137,9 +137,11 @@ const createRoomHost = (
             const source = first
                 ? { contentUrl: config.contentUrl, contentFilename: config.contentFilename }
                 : { contentUrl: room.contentUrl };
+            // destroyed, or no longer wanted in the slot
+            const cancelled = () => viewer.destroyed || signal.aborted;
             const settings = await loadSettings(room);
-            if (viewer.destroyed) {
-                throw new Error('the viewer was destroyed while loading');
+            if (cancelled()) {
+                throw new Error(viewer.destroyed ? 'the viewer was destroyed while loading' : `room "${room.id}" is no longer needed`);
             }
 
             const { entity, asset } = await loadGsplat(
@@ -148,7 +150,7 @@ const createRoomHost = (
                 () => {
                     // a background load has no progress bar
                 },
-                () => viewer.destroyed
+                cancelled
             );
 
             // Runs as a microtask of the asset's load event, so no frame draws it unparked or

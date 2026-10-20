@@ -58,6 +58,13 @@ const loadGsplat = async (
 
         let watermark = 0;
         asset.on('progress', (received, length) => {
+            // no longer wanted (a replaced room preload): stop the download and free what came
+            if (cancelled()) {
+                app.assets.remove(asset);
+                asset.unload();
+                reject(new Error(`loadGsplat: "${contentUrl}" was cancelled while loading`));
+                return;
+            }
             const progress = Math.min(1, received / length) * 100;
             if (progress > watermark) {
                 watermark = progress;

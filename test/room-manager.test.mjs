@@ -70,10 +70,10 @@ const fakeHost = () => {
         readies,
         // what progress() reports for a loaded, not yet ready room
         progressValue: 0,
-        load(room) {
+        load(room, signal) {
             calls.push(`load:${room.id}`);
             const d = deferred();
-            loads.push({ id: room.id, ...d });
+            loads.push({ id: room.id, signal, ...d });
             return d.promise;
         },
         whenReady(instance) {
@@ -640,5 +640,35 @@ describe('RoomManager when the host throws', () => {
         lastLoad(host, 'tunnel').resolve('tunnel-instance');
         await flush();
         assert.deepEqual(manager.doorState(0), { load: 'loading', progress: 0, pending: null });
+    });
+
+    describe('aborting and XR', () => {
+        it('enter() is ignored during an XR session', async () => {
+            manager = new RoomManager(specRooms(), 'hall-instance', host, () => true);
+            manager.start();
+            await manager.enter(0);
+            await flush();
+            assert.deepEqual(host.calls, []);
+        });
+
+        it('replacing a preloading room aborts its load', async () => {
+            manager = new RoomManager(threeRooms(), 'hall-instance', host);
+            manager.start();
+            manager.update(at(16, 0, 0), 'walk', false, QUIET);
+            const tunnel = lastLoad(host, 'tunnel');
+            assert.equal(tunnel.signal.aborted, false);
+            manager.update(at(-16, 0, 0), 'walk', false, QUIET);
+            assert.equal(count(host, 'load:cellar'), 1);
+            assert.equal(tunnel.signal.aborted, true);
+            assert.equal(lastLoad(host, 'cellar').signal.aborted, false);
+        });
+
+        it('destroy() aborts a preload in flight', () => {
+            manager.start();
+            manager.update(nearHallDoor, 'walk', false, QUIET);
+            const tunnel = lastLoad(host, 'tunnel');
+            manager.destroy();
+            assert.equal(tunnel.signal.aborted, true);
+        });
     });
 });
