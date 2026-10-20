@@ -82,6 +82,7 @@
     },
     "scripts": {
         "build": "rollup -c",
+        "prepare": "npm run build",
         "develop": "concurrently --kill-others \"npm run watch\" \"npm run serve\" \"npm run type:watch\"",
         "fmt": "prettier --check src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
         "fmt:fix": "prettier --write src test rollup.config.mjs eslint.config.mjs prettier.config.mjs",
